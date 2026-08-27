@@ -1,0 +1,9 @@
+dist/
+*.user
+*.suo
+*.log
+settings.ini
+.vs/
+.idea/
+bin/
+obj/

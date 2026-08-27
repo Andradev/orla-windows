@@ -1,0 +1,22 @@
+name: build
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build VictorShell
+        shell: powershell
+        run: .\Build.ps1
+      - name: Upload unsigned build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: VictorShell-unsigned-x64
+          path: dist\VictorShell.exe
