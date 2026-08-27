@@ -29,8 +29,8 @@ using WpfEllipse = System.Windows.Shapes.Ellipse;
 [assembly: AssemblyCompany("Orla contributors")]
 [assembly: AssemblyProduct("Orla")]
 [assembly: AssemblyCopyright("MIT License")]
-[assembly: AssemblyVersion("1.1.2.0")]
-[assembly: AssemblyFileVersion("1.1.2.0")]
+[assembly: AssemblyVersion("1.1.3.0")]
+[assembly: AssemblyFileVersion("1.1.3.0")]
 
 namespace Orla
 {
@@ -300,7 +300,7 @@ namespace Orla
             return Forms.Screen.PrimaryScreen.DeviceName;
         }
 
-        private static bool RequestFluentSearchWindow(int timeoutMilliseconds)
+        private static bool RequestFluentSearchWindow(int timeoutMilliseconds, string targetScreenDeviceName)
         {
             Stopwatch stopwatch = Stopwatch.StartNew();
             string pipeName = "FluentSearch" + Environment.UserName;
@@ -311,6 +311,11 @@ namespace Orla
                     using (NamedPipeClientStream pipe = new NamedPipeClientStream(".", pipeName, PipeDirection.Out))
                     {
                         pipe.Connect(250);
+                        // Transfere a janela ainda oculta para o monitor solicitado.
+                        // Depois de visível, o próprio Fluent controla tamanho e
+                        // posição para não haver um segundo salto vertical.
+                        IntPtr hiddenWindow = WindowCatalog.FindProcessWindow("FluentSearch", "Fluent Search", false);
+                        MoveFluentSearchToScreen(hiddenWindow, targetScreenDeviceName);
                         using (StreamWriter writer = new StreamWriter(pipe, new UTF8Encoding(false)))
                         {
                             writer.AutoFlush = true;
@@ -333,7 +338,7 @@ namespace Orla
             {
                 IntPtr handle = WindowCatalog.FindProcessWindow("FluentSearch", "Fluent Search", true);
                 if (handle != IntPtr.Zero) return handle;
-                Thread.Sleep(50);
+                Thread.Sleep(5);
             }
             return IntPtr.Zero;
         }
@@ -375,13 +380,12 @@ namespace Orla
                 }
                 foreach (Process process in running) process.Dispose();
 
-                if (RequestFluentSearchWindow(4000))
+                if (RequestFluentSearchWindow(4000, targetScreenDeviceName))
                 {
                     IntPtr searchWindow = WaitForVisibleFluentSearchWindow(1600);
-                    bool moved = MoveFluentSearchToScreen(searchWindow, targetScreenDeviceName);
-                    Logger.Write(moved
+                    Logger.Write(searchWindow != IntPtr.Zero
                         ? "Fluent Search aberto pelo canal nativo em " + targetScreenDeviceName + "."
-                        : "Fluent Search abriu, mas não foi possível reposicioná-lo em " + targetScreenDeviceName + ".");
+                        : "Fluent Search recebeu o comando, mas a janela não ficou visível.");
                 }
                 else
                     Logger.Write("O canal nativo do Fluent Search não respondeu em " + targetScreenDeviceName + ".");
@@ -605,10 +609,19 @@ namespace Orla
                 lines.Add("NativePinnedImportedV5=true");
                 lines.Add("# Uma topbar e um dock aparecem em cada monitor conectado.");
                 lines.Add("# Favoritos do dock; use o menu de contexto para fixar ou desafixar.");
-                lines.AddRange(PinnedApplications.Select(delegate(PinnedApplication app)
+                if (PinnedApplications.Count == 0)
                 {
-                    return "PinnedApp=" + app.Name.Replace("|", "-") + "|" + app.Path;
-                }));
+                    // Diferencia "nenhum favorito" de uma configuração antiga ou
+                    // ausente, que recebe a lista padrão na primeira inicialização.
+                    lines.Add("PinnedApp=");
+                }
+                else
+                {
+                    lines.AddRange(PinnedApplications.Select(delegate(PinnedApplication app)
+                    {
+                        return "PinnedApp=" + app.Name.Replace("|", "-") + "|" + app.Path;
+                    }));
+                }
                 File.WriteAllLines(path, lines, Encoding.UTF8);
             }
             catch (Exception exception)

@@ -15,7 +15,7 @@ Orla é um único executável WPF/.NET Framework x64, sem pacotes externos, serv
 
 ## Fluent Search multi-monitor
 
-Cada botão informa o `Screen.DeviceName` de sua própria tela; a tecla Windows usa a tela do cursor. Orla envia uma mensagem `RequestOpen` pelo pipe local da instância do Fluent Search. O próprio Fluent inicializa e focaliza o campo de busca; somente depois Orla centraliza o HWND já visível na área útil solicitada.
+Cada botão informa o `Screen.DeviceName` de sua própria tela; a tecla Windows usa a tela do cursor. Antes de enviar `RequestOpen` pelo pipe local, Orla transfere o HWND ainda oculto para a área útil solicitada. Depois que o Fluent o torna visível, Orla não altera mais a posição: o próprio Fluent controla a transição entre a altura temporária e a barra compacta, sem um segundo salto vertical.
 
 Essa ordem é importante: reexibir diretamente o HWND oculto produz uma janela visualmente aberta, mas sem o estado interno de pesquisa. Orla não simula o hotkey, não força uma janela oculta a aparecer e não reinicia à força o Fluent Search.
 

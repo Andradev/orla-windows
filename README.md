@@ -29,7 +29,7 @@ O projeto nasceu de uma meta simples: manter a fluidez visual de um dock moderno
 - ordem dos aplicativos por arrastar e soltar, sem transformar apps fechados em fixos;
 - somente o Explorador fica fixado por padrão;
 - menu de contexto para janelas, nova instância, fixar, desafixar e fechar;
-- Fluent Search opcional: `Win` isolado abre a busca pelo canal local da própria instância, no monitor em uso;
+- Fluent Search opcional: `Win` isolado abre a busca pelo canal local da própria instância, já posicionada no monitor em uso e sem salto visível;
 - botões do Fluent Search em cada tela sempre abrem a busca naquela tela;
 - `Win+Shift+S`, `Win+E`, `Win+D` e outras combinações continuam no Windows;
 - restauração explícita da barra nativa ao sair, desinstalar ou usar `--restore`.
