@@ -29,8 +29,8 @@ using WpfEllipse = System.Windows.Shapes.Ellipse;
 [assembly: AssemblyCompany("Orla contributors")]
 [assembly: AssemblyProduct("Orla")]
 [assembly: AssemblyCopyright("MIT License")]
-[assembly: AssemblyVersion("1.1.0.0")]
-[assembly: AssemblyFileVersion("1.1.0.0")]
+[assembly: AssemblyVersion("1.1.1.0")]
+[assembly: AssemblyFileVersion("1.1.1.0")]
 
 namespace Orla
 {
@@ -1283,7 +1283,6 @@ namespace Orla
 
             _items.Children.Clear();
             _indicators.Clear();
-            _items.Children.Add(CreatePinnedButton(_settings.FluentSearchPath, "Fluent Search", delegate { _controller.LaunchFluentSearch(_screenDeviceName); }, "\uE721", Process.GetProcessesByName("FluentSearch").Length > 0));
             _items.Children.Add(CreateShowDesktopButton());
             _items.Children.Add(CreateGroupSpacer());
 
