@@ -11,12 +11,12 @@ jobs:
   build:
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Build VictorShell
         shell: powershell
         run: .\Build.ps1
       - name: Upload unsigned build artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: VictorShell-unsigned-x64
           path: dist\VictorShell.exe
