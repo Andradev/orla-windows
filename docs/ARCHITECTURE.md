@@ -23,6 +23,8 @@ Essa ordem é importante: reexibir diretamente o HWND oculto produz uma janela v
 
 Topbars opacas e docks transparentes usam renderização por software para manter previsível a memória em GPUs integradas. Relógio/rede/bateria são atualizados a cada 15 segundos. Foco usa evento nativo; o catálogo do dock roda a cada 2 segundos; borda e sobreposição usam cache.
 
+O dock mantém o histórico dos dois últimos aplicativos externos, ignorando suas próprias janelas e janelas auxiliares do mesmo processo. Ao minimizar o aplicativo ativo, Orla promove o aplicativo anterior e sincroniza imediatamente os indicadores dos dois monitores.
+
 ## Multi-monitor
 
 Cada `Screen.DeviceName` recebe uma topbar e um dock. A lista e a ordem são compartilhadas; posicionamento, área útil, auto-hide e destino do Fluent Search pertencem a cada tela.

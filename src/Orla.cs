@@ -29,8 +29,8 @@ using WpfEllipse = System.Windows.Shapes.Ellipse;
 [assembly: AssemblyCompany("Orla contributors")]
 [assembly: AssemblyProduct("Orla")]
 [assembly: AssemblyCopyright("MIT License")]
-[assembly: AssemblyVersion("1.1.1.0")]
-[assembly: AssemblyFileVersion("1.1.1.0")]
+[assembly: AssemblyVersion("1.1.2.0")]
+[assembly: AssemblyFileVersion("1.1.2.0")]
 
 namespace Orla
 {
@@ -233,6 +233,13 @@ namespace Orla
             _settings.ApplicationOrder = order;
             _settings.SaveApplicationOrder();
             RefreshDocks();
+        }
+
+        internal void SynchronizeForeground(IntPtr foreground)
+        {
+            if (foreground == IntPtr.Zero) return;
+            foreach (DockWindow dock in _docks) dock.ForegroundChanged(foreground);
+            foreach (TopBarWindow topBar in _topBars) topBar.ForegroundChanged(foreground);
         }
 
         private void RefreshDocks()
@@ -1058,6 +1065,7 @@ namespace Orla
         private IntPtr _handle;
         private IntPtr _lastForeground;
         private IntPtr _lastExternalForeground;
+        private IntPtr _previousExternalForeground;
         private bool _hidden;
         private bool _disposed;
         private DateTime _hideRequestedAt = DateTime.MinValue;
@@ -1181,9 +1189,7 @@ namespace Orla
         {
             IntPtr foreground = NativeMethods.GetForegroundWindow();
             if (foreground == IntPtr.Zero) return;
-            uint processId;
-            NativeMethods.GetWindowThreadProcessId(foreground, out processId);
-            if (processId != 0 && processId != _currentProcessId) _lastExternalForeground = foreground;
+            RecordExternalForeground(foreground);
             if (foreground != _lastForeground)
             {
                 _lastForeground = foreground;
@@ -1194,12 +1200,46 @@ namespace Orla
         internal void ForegroundChanged(IntPtr foreground)
         {
             if (foreground == IntPtr.Zero) return;
-            uint processId;
-            NativeMethods.GetWindowThreadProcessId(foreground, out processId);
-            if (processId != 0 && processId != _currentProcessId) _lastExternalForeground = foreground;
+            RecordExternalForeground(foreground);
             if (foreground == _lastForeground) return;
             _lastForeground = foreground;
             UpdateActiveIndicators(foreground);
+        }
+
+        private void RecordExternalForeground(IntPtr foreground)
+        {
+            uint processId;
+            NativeMethods.GetWindowThreadProcessId(foreground, out processId);
+            if (processId == 0 || processId == _currentProcessId || foreground == _lastExternalForeground) return;
+
+            uint lastProcessId = 0;
+            if (_lastExternalForeground != IntPtr.Zero)
+                NativeMethods.GetWindowThreadProcessId(_lastExternalForeground, out lastProcessId);
+
+            // Janelas auxiliares do mesmo aplicativo não substituem o histórico
+            // do app anterior (comum no Teams e em aplicativos WebView).
+            if (lastProcessId != 0 && lastProcessId == processId)
+            {
+                _lastExternalForeground = foreground;
+                return;
+            }
+
+            _previousExternalForeground = _lastExternalForeground;
+            _lastExternalForeground = foreground;
+        }
+
+        private IntPtr ResolvePreviousExternalForeground(List<WindowItem> currentApplicationWindows)
+        {
+            if (_previousExternalForeground == IntPtr.Zero) return IntPtr.Zero;
+            if (currentApplicationWindows.Any(delegate(WindowItem item) { return item.Handle == _previousExternalForeground; }))
+                return IntPtr.Zero;
+
+            return WindowCatalog.GetVisibleWindows().Any(delegate(WindowItem item)
+            {
+                return item.Handle == _previousExternalForeground
+                    && !item.IsOrla
+                    && !NativeMethods.IsIconic(item.Handle);
+            }) ? _previousExternalForeground : IntPtr.Zero;
         }
 
         private void UpdateActiveIndicators(IntPtr foreground)
@@ -1263,10 +1303,7 @@ namespace Orla
             // SplitWindows=false: os dois docks mostram os mesmos apps, agrupados.
             List<WindowItem> windows = WindowCatalog.GetVisibleWindows();
             IntPtr foreground = NativeMethods.GetForegroundWindow();
-            uint foregroundProcessId;
-            NativeMethods.GetWindowThreadProcessId(foreground, out foregroundProcessId);
-            if (foreground != IntPtr.Zero && foregroundProcessId != 0 && foregroundProcessId != _currentProcessId)
-                _lastExternalForeground = foreground;
+            RecordExternalForeground(foreground);
             Dictionary<IntPtr, string> snapshot = windows.ToDictionary(delegate(WindowItem item) { return item.Handle; }, delegate(WindowItem item) { return item.Title; });
             if (foreground == _lastForeground && snapshot.Count == _lastWindows.Count && snapshot.All(delegate(KeyValuePair<IntPtr, string> pair)
             {
@@ -1438,9 +1475,14 @@ namespace Orla
                 IntPtr foreground = NativeMethods.GetForegroundWindow();
                 WindowItem focused = windows.FirstOrDefault(delegate(WindowItem item) { return item.Handle == foreground; });
                 if (focused == null)
-                    focused = windows.FirstOrDefault(delegate(WindowItem item) { return item.Handle == _lastExternalForeground; });
+                    focused = windows.FirstOrDefault(delegate(WindowItem item)
+                    {
+                        return item.Handle == _lastExternalForeground && !NativeMethods.IsIconic(item.Handle);
+                    });
                 bool wasActive = focused != null;
-                ShellActions.ActivateOrMinimize((focused ?? windows[0]).Handle, wasActive);
+                IntPtr fallback = wasActive ? ResolvePreviousExternalForeground(windows) : IntPtr.Zero;
+                ShellActions.ActivateOrMinimize((focused ?? windows[0]).Handle, wasActive, fallback);
+                if (wasActive && fallback != IntPtr.Zero) _controller.SynchronizeForeground(fallback);
             };
             button.PreviewMouseDown += delegate(object sender, MouseButtonEventArgs eventArgs)
             {
@@ -2053,12 +2095,27 @@ namespace Orla
 
         internal static void ActivateOrMinimize(IntPtr handle, bool wasActive)
         {
+            ActivateOrMinimize(handle, wasActive, IntPtr.Zero);
+        }
+
+        internal static void ActivateOrMinimize(IntPtr handle, bool wasActive, IntPtr fallbackHandle)
+        {
             if (handle == IntPtr.Zero) return;
             if (wasActive)
             {
+                if (fallbackHandle != IntPtr.Zero) ActivateWindow(fallbackHandle);
                 NativeMethods.ShowWindowAsync(handle, NativeMethods.SwMinimize);
+                if (fallbackHandle != IntPtr.Zero && NativeMethods.GetForegroundWindow() != fallbackHandle)
+                    ActivateWindow(fallbackHandle);
                 return;
             }
+
+            ActivateWindow(handle);
+        }
+
+        private static void ActivateWindow(IntPtr handle)
+        {
+            if (handle == IntPtr.Zero) return;
 
             if (NativeMethods.IsIconic(handle)) NativeMethods.ShowWindowAsync(handle, NativeMethods.SwRestore);
             NativeMethods.ShowWindowAsync(handle, NativeMethods.SwShow);
