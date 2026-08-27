@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Globalization;
 using System.IO;
+using System.IO.Pipes;
 using System.Linq;
 using System.Net.NetworkInformation;
 using System.Reflection;
@@ -23,15 +24,15 @@ using DrawingPoint = System.Drawing.Point;
 using DrawingRectangle = System.Drawing.Rectangle;
 using WpfEllipse = System.Windows.Shapes.Ellipse;
 
-[assembly: AssemblyTitle("Victor Shell")]
+[assembly: AssemblyTitle("Orla")]
 [assembly: AssemblyDescription("Topbar e dock leves para Windows")]
-[assembly: AssemblyCompany("VictorShell contributors")]
-[assembly: AssemblyProduct("Victor Shell")]
+[assembly: AssemblyCompany("Orla contributors")]
+[assembly: AssemblyProduct("Orla")]
 [assembly: AssemblyCopyright("MIT License")]
-[assembly: AssemblyVersion("1.0.0.0")]
-[assembly: AssemblyFileVersion("1.0.0.0")]
+[assembly: AssemblyVersion("1.1.0.0")]
+[assembly: AssemblyFileVersion("1.1.0.0")]
 
-namespace VictorShell
+namespace Orla
 {
     internal static class Program
     {
@@ -47,7 +48,7 @@ namespace VictorShell
             }
 
             bool created;
-            _mutex = new Mutex(true, "VictorShell.SingleInstance", out created);
+            _mutex = new Mutex(true, "Orla.SingleInstance", out created);
             if (!created)
             {
                 return;
@@ -88,7 +89,7 @@ namespace VictorShell
         private ForegroundWindowTracker _foregroundTracker;
         private DispatcherTimer _taskbarTimer;
         private bool _exiting;
-        private DateTime _lastFluentHotkeyAt = DateTime.MinValue;
+        private DateTime _lastFluentRequestAt = DateTime.MinValue;
         private int _fluentRecoveryInProgress;
 
         internal ShellController(Application application)
@@ -99,7 +100,7 @@ namespace VictorShell
 
         internal void Start()
         {
-            Logger.Write("Iniciando Victor Shell.");
+            Logger.Write("Iniciando Orla.");
             TaskbarController.HideAll();
 
             CreateBars();
@@ -246,9 +247,15 @@ namespace VictorShell
 
         internal void LaunchFluentSearch()
         {
+            LaunchFluentSearch(null);
+        }
+
+        internal void LaunchFluentSearch(string targetScreenDeviceName)
+        {
             try
             {
-                Logger.Write("Fluent Search solicitado pela interface/tecla Windows.");
+                string targetScreen = ResolveFluentTargetScreen(targetScreenDeviceName);
+                Logger.Write("Fluent Search solicitado para " + targetScreen + ".");
                 string path = _settings.FluentSearchPath;
                 if (!File.Exists(path))
                 {
@@ -256,19 +263,12 @@ namespace VictorShell
                     return;
                 }
 
-                IntPtr visibleSearch = WindowCatalog.FindVisibleWindow("FluentSearch", "Fluent Search");
-                if (visibleSearch != IntPtr.Zero)
-                {
-                    NativeMethods.SetForegroundWindow(visibleSearch);
-                    return;
-                }
-
                 DateTime now = DateTime.Now;
-                if ((now - _lastFluentHotkeyAt).TotalMilliseconds < 800) return;
-                _lastFluentHotkeyAt = now;
+                if ((now - _lastFluentRequestAt).TotalMilliseconds < 350) return;
+                _lastFluentRequestAt = now;
 
                 if (Interlocked.CompareExchange(ref _fluentRecoveryInProgress, 1, 0) != 0) return;
-                ThreadPool.QueueUserWorkItem(delegate { ActivateFluentSearch(path); });
+                ThreadPool.QueueUserWorkItem(delegate { ActivateFluentSearch(path, targetScreen); });
             }
             catch (Exception exception)
             {
@@ -276,53 +276,108 @@ namespace VictorShell
             }
         }
 
-        private void SendFluentSearchHotkey()
+        private static string ResolveFluentTargetScreen(string requestedScreenDeviceName)
         {
-            ushort[] keys = _settings.FluentSearchHotkey;
-            Logger.Write("Enviando atalho do Fluent Search: " + string.Join(",", keys.Select(delegate(ushort key) { return key.ToString(CultureInfo.InvariantCulture); })));
-            foreach (ushort key in keys)
+            if (!string.IsNullOrWhiteSpace(requestedScreenDeviceName)
+                && Forms.Screen.AllScreens.Any(delegate(Forms.Screen screen)
+                {
+                    return string.Equals(screen.DeviceName, requestedScreenDeviceName, StringComparison.OrdinalIgnoreCase);
+                }))
             {
-                NativeMethods.keybd_event((byte)key, 0, 0, UIntPtr.Zero);
-                Thread.Sleep(25);
+                return requestedScreenDeviceName;
             }
-            for (int index = keys.Length - 1; index >= 0; index--)
-            {
-                NativeMethods.keybd_event((byte)keys[index], 0, NativeMethods.KeyeventfKeyup, UIntPtr.Zero);
-                Thread.Sleep(25);
-            }
+
+            NativeMethods.ScreenPoint cursor;
+            if (NativeMethods.GetCursorPos(out cursor))
+                return Forms.Screen.FromPoint(new DrawingPoint(cursor.X, cursor.Y)).DeviceName;
+            return Forms.Screen.PrimaryScreen.DeviceName;
         }
 
-        private void ActivateFluentSearch(string path)
+        private static bool RequestFluentSearchWindow(int timeoutMilliseconds)
+        {
+            Stopwatch stopwatch = Stopwatch.StartNew();
+            string pipeName = "FluentSearch" + Environment.UserName;
+            while (stopwatch.ElapsedMilliseconds < timeoutMilliseconds)
+            {
+                try
+                {
+                    using (NamedPipeClientStream pipe = new NamedPipeClientStream(".", pipeName, PipeDirection.Out))
+                    {
+                        pipe.Connect(250);
+                        using (StreamWriter writer = new StreamWriter(pipe, new UTF8Encoding(false)))
+                        {
+                            writer.AutoFlush = true;
+                            writer.WriteLine("{\"MessageType\":0}");
+                        }
+                    }
+                    return true;
+                }
+                catch (TimeoutException) { }
+                catch (IOException) { }
+                Thread.Sleep(100);
+            }
+            return false;
+        }
+
+        private static IntPtr WaitForVisibleFluentSearchWindow(int timeoutMilliseconds)
+        {
+            Stopwatch stopwatch = Stopwatch.StartNew();
+            while (stopwatch.ElapsedMilliseconds < timeoutMilliseconds)
+            {
+                IntPtr handle = WindowCatalog.FindProcessWindow("FluentSearch", "Fluent Search", true);
+                if (handle != IntPtr.Zero) return handle;
+                Thread.Sleep(50);
+            }
+            return IntPtr.Zero;
+        }
+
+        private static bool MoveFluentSearchToScreen(IntPtr handle, string targetScreenDeviceName)
+        {
+            if (handle == IntPtr.Zero) return false;
+            Forms.Screen screen = Forms.Screen.AllScreens.FirstOrDefault(delegate(Forms.Screen candidate)
+            {
+                return string.Equals(candidate.DeviceName, targetScreenDeviceName, StringComparison.OrdinalIgnoreCase);
+            }) ?? Forms.Screen.PrimaryScreen;
+
+            NativeMethods.Rect current;
+            if (!NativeMethods.GetWindowRect(handle, out current)) return false;
+            DrawingRectangle working = screen.WorkingArea;
+            int width = Math.Min(Math.Max(1, current.right - current.left), working.Width);
+            int height = Math.Min(Math.Max(1, current.bottom - current.top), working.Height);
+            int left = working.Left + Math.Max(0, (working.Width - width) / 2);
+            int top = working.Top + Math.Max(0, (working.Height - height) / 2);
+
+            return NativeMethods.SetWindowPos(
+                handle,
+                IntPtr.Zero,
+                left,
+                top,
+                0,
+                0,
+                NativeMethods.SwpNoSize | NativeMethods.SwpNoZOrder | NativeMethods.SwpNoActivate);
+        }
+
+        private void ActivateFluentSearch(string path, string targetScreenDeviceName)
         {
             try
             {
                 Process[] running = Process.GetProcessesByName("FluentSearch");
                 if (running.Length == 0)
                 {
-                    Process.Start(new ProcessStartInfo(path) { UseShellExecute = true });
-                    Thread.Sleep(1700);
+                    Process.Start(new ProcessStartInfo(path, "-forceShow") { UseShellExecute = true });
                 }
                 foreach (Process process in running) process.Dispose();
 
-                SendFluentSearchHotkey();
-                Thread.Sleep(1200);
-                if (WindowCatalog.FindVisibleWindow("FluentSearch", "Fluent Search") != IntPtr.Zero) return;
-
-                // A versão estável pode manter o processo vivo sem aceitar o
-                // hotkey. Reiniciar somente nesse estado recupera a instância sem
-                // alterar configuração, índice ou favoritos armazenados em disco.
-                Logger.Write("Fluent Search não exibiu a janela; recuperando a instância.");
-                foreach (Process process in Process.GetProcessesByName("FluentSearch"))
+                if (RequestFluentSearchWindow(4000))
                 {
-                    try { process.Kill(); process.WaitForExit(1500); } catch { }
-                    finally { process.Dispose(); }
+                    IntPtr searchWindow = WaitForVisibleFluentSearchWindow(1600);
+                    bool moved = MoveFluentSearchToScreen(searchWindow, targetScreenDeviceName);
+                    Logger.Write(moved
+                        ? "Fluent Search aberto pelo canal nativo em " + targetScreenDeviceName + "."
+                        : "Fluent Search abriu, mas não foi possível reposicioná-lo em " + targetScreenDeviceName + ".");
                 }
-                Process.Start(new ProcessStartInfo(path) { UseShellExecute = true });
-                Thread.Sleep(1700);
-                SendFluentSearchHotkey();
-                Thread.Sleep(1200);
-                if (WindowCatalog.FindVisibleWindow("FluentSearch", "Fluent Search") == IntPtr.Zero)
-                    Logger.Write("Fluent Search continuou oculto após recuperação.");
+                else
+                    Logger.Write("O canal nativo do Fluent Search não respondeu em " + targetScreenDeviceName + ".");
             }
             catch (Exception exception)
             {
@@ -400,7 +455,6 @@ namespace VictorShell
     internal sealed class ShellSettings
     {
         internal string FluentSearchPath;
-        internal ushort[] FluentSearchHotkey;
         internal bool BareWindowsKeyOpensFluent;
         internal int TopBarHeight;
         internal int DockReservedHeight;
@@ -411,7 +465,6 @@ namespace VictorShell
         {
             ShellSettings settings = new ShellSettings();
             settings.FluentSearchPath = @"C:\Program Files\Fluent Search\FluentSearch.exe";
-            settings.FluentSearchHotkey = new ushort[] { 162, 164, 32 };
             settings.BareWindowsKeyOpensFluent = true;
             settings.TopBarHeight = 29;
             settings.DockReservedHeight = 61;
@@ -421,15 +474,25 @@ namespace VictorShell
             try
             {
                 string path = Path.Combine(Paths.DataDirectory, "settings.ini");
+                string legacyPath = Path.Combine(Paths.LegacyDataDirectory, "settings.ini");
+                if (!File.Exists(path) && File.Exists(legacyPath))
+                {
+                    Directory.CreateDirectory(Paths.DataDirectory);
+                    File.Copy(legacyPath, path, false);
+                    string[] migratedLines = File.ReadAllLines(path, Encoding.UTF8);
+                    if (migratedLines.Length > 0 && migratedLines[0].StartsWith("# Victor Shell", StringComparison.OrdinalIgnoreCase))
+                        migratedLines[0] = "# Orla - configuração simples e reversível";
+                    File.WriteAllLines(path, migratedLines, Encoding.UTF8);
+                    Logger.Write("Configuração migrada da instalação anterior para Orla.");
+                }
                 if (!File.Exists(path))
                 {
                     Directory.CreateDirectory(Paths.DataDirectory);
                     settings.PinnedApplications = PinnedCatalog.GetDefaultPinnedApplications();
                     List<string> initialLines = new List<string>
                     {
-                        "# Victor Shell - configuração simples e reversível",
+                        "# Orla - configuração simples e reversível",
                         "FluentSearchPath=" + settings.FluentSearchPath,
-                        "FluentSearchHotkey=162,164,32",
                         "BareWindowsKeyOpensFluent=true",
                         "SettingsFormat=2",
                         "NativePinnedImportedV5=true",
@@ -457,7 +520,6 @@ namespace VictorShell
                     string key = line.Substring(0, separator).Trim();
                     string value = line.Substring(separator + 1).Trim();
                     if (string.Equals(key, "FluentSearchPath", StringComparison.OrdinalIgnoreCase)) settings.FluentSearchPath = value;
-                    if (string.Equals(key, "FluentSearchHotkey", StringComparison.OrdinalIgnoreCase)) settings.FluentSearchHotkey = ParseHotkey(value, settings.FluentSearchHotkey);
                     if (string.Equals(key, "BareWindowsKeyOpensFluent", StringComparison.OrdinalIgnoreCase)) settings.BareWindowsKeyOpensFluent = ParseBool(value, true);
                     if (string.Equals(key, "TopBarHeight", StringComparison.OrdinalIgnoreCase)) settings.TopBarHeight = ParseInt(value, 29, 24, 42);
                     if (string.Equals(key, "DockReservedHeight", StringComparison.OrdinalIgnoreCase)) settings.DockReservedHeight = ParseInt(value, 61, 48, 82);
@@ -520,6 +582,7 @@ namespace VictorShell
                     {
                         string trimmed = line.TrimStart();
                         return !trimmed.StartsWith("PinnedApp=", StringComparison.OrdinalIgnoreCase)
+                            && !trimmed.StartsWith("FluentSearchHotkey=", StringComparison.OrdinalIgnoreCase)
                             && !trimmed.StartsWith("SettingsFormat=", StringComparison.OrdinalIgnoreCase)
                             && !trimmed.StartsWith("NativePinnedImported=", StringComparison.OrdinalIgnoreCase)
                             && !trimmed.StartsWith("NativePinnedImportedV2=", StringComparison.OrdinalIgnoreCase)
@@ -531,8 +594,6 @@ namespace VictorShell
                             && !trimmed.StartsWith("# Uma topbar e um dock", StringComparison.OrdinalIgnoreCase);
                     }).ToList()
                     : new List<string>();
-                if (!lines.Any(delegate(string line) { return line.TrimStart().StartsWith("FluentSearchHotkey=", StringComparison.OrdinalIgnoreCase); }))
-                    lines.Add("FluentSearchHotkey=" + string.Join(",", FluentSearchHotkey.Select(delegate(ushort key) { return key.ToString(CultureInfo.InvariantCulture); })));
                 lines.Add("SettingsFormat=2");
                 lines.Add("NativePinnedImportedV5=true");
                 lines.Add("# Uma topbar e um dock aparecem em cada monitor conectado.");
@@ -594,20 +655,6 @@ namespace VictorShell
             return Math.Max(minimum, Math.Min(maximum, parsed));
         }
 
-        private static ushort[] ParseHotkey(string value, ushort[] fallback)
-        {
-            try
-            {
-                ushort[] parsed = value.Split(',')
-                    .Select(delegate(string part) { return ushort.Parse(part.Trim(), CultureInfo.InvariantCulture); })
-                    .ToArray();
-                return parsed.Length > 0 ? parsed : fallback;
-            }
-            catch
-            {
-                return fallback;
-            }
-        }
     }
 
     internal static class PinnedCatalog
@@ -645,8 +692,10 @@ namespace VictorShell
     internal static class Paths
     {
         internal static readonly string DataDirectory = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Orla");
+        internal static readonly string LegacyDataDirectory = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "VictorShell");
-        internal static readonly string LogPath = Path.Combine(DataDirectory, "VictorShell.log");
+        internal static readonly string LogPath = Path.Combine(DataDirectory, "Orla.log");
     }
 
     internal static class Logger
@@ -843,7 +892,7 @@ namespace VictorShell
             searchGlyph.Foreground = new SolidColorBrush(Color.FromRgb(10, 132, 255));
             Button search = Ui.WrapButton(searchGlyph, "Abrir Fluent Search — toque na tecla Windows", 28, 24);
             Ui.EnableTopBarMotion(search);
-            search.Click += delegate { _controller.LaunchFluentSearch(); };
+            search.Click += delegate { _controller.LaunchFluentSearch(ScreenDeviceName); };
             left.Children.Add(search);
 
             _activeTitle = Ui.Text("Área de Trabalho", 11.5, FontWeights.SemiBold);
@@ -1234,7 +1283,7 @@ namespace VictorShell
 
             _items.Children.Clear();
             _indicators.Clear();
-            _items.Children.Add(CreatePinnedButton(_settings.FluentSearchPath, "Fluent Search", delegate { _controller.LaunchFluentSearch(); }, "\uE721", Process.GetProcessesByName("FluentSearch").Length > 0));
+            _items.Children.Add(CreatePinnedButton(_settings.FluentSearchPath, "Fluent Search", delegate { _controller.LaunchFluentSearch(_screenDeviceName); }, "\uE721", Process.GetProcessesByName("FluentSearch").Length > 0));
             _items.Children.Add(CreateShowDesktopButton());
             _items.Children.Add(CreateGroupSpacer());
 
@@ -1260,7 +1309,7 @@ namespace VictorShell
             List<IGrouping<string, WindowItem>> dynamicGroups = windows
                 .Where(delegate(WindowItem item)
                 {
-                    return !item.IsVictorShell
+                    return !item.IsOrla
                         && !string.IsNullOrWhiteSpace(ApplicationKey(item))
                         && !string.Equals(item.ProcessName, "FluentSearch", StringComparison.OrdinalIgnoreCase)
                         && !_settings.PinnedApplications.Any(delegate(PinnedApplication pinned)
@@ -1425,13 +1474,13 @@ namespace VictorShell
                 double verticalThreshold = Math.Max(8.0, SystemParameters.MinimumVerticalDragDistance * 1.5);
                 if (Math.Abs(current.X - _dragStart.X) < horizontalThreshold
                     && Math.Abs(current.Y - _dragStart.Y) < verticalThreshold) return;
-                DataObject data = new DataObject("VictorShell.ApplicationKey", applicationKey);
+                DataObject data = new DataObject("Orla.ApplicationKey", applicationKey);
                 DragDrop.DoDragDrop(button, data, DragDropEffects.Move);
                 eventArgs.Handled = true;
             };
             button.DragOver += delegate(object sender, DragEventArgs eventArgs)
             {
-                eventArgs.Effects = eventArgs.Data.GetDataPresent("VictorShell.ApplicationKey")
+                eventArgs.Effects = eventArgs.Data.GetDataPresent("Orla.ApplicationKey")
                     ? DragDropEffects.Move
                     : DragDropEffects.None;
                 eventArgs.Handled = true;
@@ -1441,8 +1490,8 @@ namespace VictorShell
             button.Drop += delegate(object sender, DragEventArgs eventArgs)
             {
                 button.Opacity = 1.0;
-                if (!eventArgs.Data.GetDataPresent("VictorShell.ApplicationKey")) return;
-                string sourceKey = eventArgs.Data.GetData("VictorShell.ApplicationKey") as string;
+                if (!eventArgs.Data.GetDataPresent("Orla.ApplicationKey")) return;
+                string sourceKey = eventArgs.Data.GetData("Orla.ApplicationKey") as string;
                 bool insertAfter = eventArgs.GetPosition(button).X > button.ActualWidth / 2.0;
                 _controller.MoveApplication(sourceKey, applicationKey, _currentApplicationKeys, insertAfter);
                 eventArgs.Handled = true;
@@ -1822,7 +1871,7 @@ namespace VictorShell
         internal string ExecutablePath;
         internal string ProcessName;
         internal string ApplicationName;
-        internal bool IsVictorShell;
+        internal bool IsOrla;
         internal bool IsPinnedApplication;
     }
 
@@ -1839,13 +1888,18 @@ namespace VictorShell
 
         internal static IntPtr FindVisibleWindow(string processName, string expectedTitle)
         {
+            return FindProcessWindow(processName, expectedTitle, true);
+        }
+
+        internal static IntPtr FindProcessWindow(string processName, string expectedTitle, bool visibleOnly)
+        {
             Process[] processes = Process.GetProcessesByName(processName);
             HashSet<uint> processIds = new HashSet<uint>(processes.Select(delegate(Process process) { return (uint)process.Id; }));
             foreach (Process process in processes) process.Dispose();
             IntPtr found = IntPtr.Zero;
             NativeMethods.EnumWindows(delegate(IntPtr handle, IntPtr parameter)
             {
-                if (!NativeMethods.IsWindowVisible(handle)) return true;
+                if (visibleOnly && !NativeMethods.IsWindowVisible(handle)) return true;
                 uint processId;
                 NativeMethods.GetWindowThreadProcessId(handle, out processId);
                 if (!processIds.Contains(processId)) return true;
@@ -1911,7 +1965,7 @@ namespace VictorShell
                     ExecutablePath = path,
                     ProcessName = processName,
                     ApplicationName = GetApplicationName(processName, path, title),
-                    IsVictorShell = processId == currentProcess,
+                    IsOrla = processId == currentProcess,
                     IsPinnedApplication = pinned
                 });
                 return true;
@@ -2305,6 +2359,8 @@ namespace VictorShell
         internal const uint AbsAutoHide = 0x00000001;
         internal const int AbnPosChanged = 0x00000001;
         internal const uint SwpNoActivate = 0x0010;
+        internal const uint SwpNoSize = 0x0001;
+        internal const uint SwpNoZOrder = 0x0004;
         internal const uint SwpShowWindow = 0x0040;
         internal static readonly IntPtr HwndTopmost = new IntPtr(-1);
         internal const int SwHide = 0;
@@ -2512,7 +2568,5 @@ namespace VictorShell
         [DllImport("user32.dll", SetLastError = true)]
         internal static extern uint SendInput(uint count, Input[] inputs, int size);
 
-        [DllImport("user32.dll")]
-        internal static extern void keybd_event(byte virtualKey, byte scanCode, uint flags, UIntPtr extraInfo);
     }
 }

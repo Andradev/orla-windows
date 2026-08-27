@@ -1,0 +1,42 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 560" role="img" aria-labelledby="title desc">
+  <title id="title">Arquitetura do Orla</title>
+  <desc id="desc">Eventos nativos do Windows alimentam um controlador único que coordena topbars e docks em cada monitor.</desc>
+  <defs>
+    <linearGradient id="bg" x1="40" y1="20" x2="1160" y2="540" gradientUnits="userSpaceOnUse"><stop stop-color="#151923"/><stop offset="1" stop-color="#090A0F"/></linearGradient>
+    <linearGradient id="blue" x1="0" x2="1"><stop stop-color="#5AC8FA"/><stop offset="1" stop-color="#0A84FF"/></linearGradient>
+    <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0l10 5-10 5z" fill="#647086"/></marker>
+  </defs>
+  <rect width="1200" height="560" rx="28" fill="url(#bg)"/>
+  <g font-family="Segoe UI, Inter, sans-serif">
+    <text x="54" y="64" fill="#F5F7FA" font-size="28" font-weight="650">Arquitetura pequena, limites claros.</text>
+    <text x="54" y="94" fill="#9FA8B8" font-size="16">APIs nativas entram; duas superfícies por monitor saem. Sem serviço, WebView ou injeção.</text>
+
+    <g fill="#FFFFFF" fill-opacity=".045" stroke="#FFFFFF" stroke-opacity=".11">
+      <rect x="54" y="142" width="240" height="76" rx="18"/><rect x="54" y="238" width="240" height="76" rx="18"/><rect x="54" y="334" width="240" height="76" rx="18"/>
+      <rect x="398" y="210" width="310" height="132" rx="24" fill="#0A84FF" fill-opacity=".09" stroke="#0A84FF" stroke-opacity=".55"/>
+      <rect x="812" y="126" width="330" height="130" rx="22"/><rect x="812" y="294" width="330" height="130" rx="22"/>
+      <rect x="398" y="424" width="310" height="68" rx="18"/>
+    </g>
+
+    <g fill="#DDE2EA" font-size="16" font-weight="600">
+      <text x="84" y="176">Janelas e processos</text><text x="84" y="272">Foco do Windows</text><text x="84" y="368">Teclado e cursor</text>
+      <text x="437" y="251" font-size="20">ShellController</text><text x="437" y="456">settings.ini</text>
+      <text x="844" y="163" font-size="18">Monitor 1</text><text x="844" y="331" font-size="18">Monitor 2</text>
+    </g>
+    <g fill="#8F99AA" font-size="13">
+      <text x="84" y="197">EnumWindows</text><text x="84" y="293">SetWinEventHook</text><text x="84" y="389">Win isolado · tela alvo</text>
+      <text x="437" y="279">ciclo de vida · catálogo · Fluent Search</text><text x="437" y="301">uma instância · recuperação reversível</text>
+      <text x="437" y="477">preferências e ordem compartilhadas</text>
+      <text x="844" y="190">TopBarWindow · AppBar reservada</text><text x="844" y="217">DockWindow · auto-hide local</text>
+      <text x="844" y="358">TopBarWindow · AppBar reservada</text><text x="844" y="385">DockWindow · auto-hide local</text>
+    </g>
+
+    <g fill="none" stroke="#647086" stroke-width="2" marker-end="url(#arrow)">
+      <path d="M294 180h68c22 0 24 46 36 54"/><path d="M294 276h104"/><path d="M294 372h68c22 0 24-46 36-54"/>
+      <path d="M708 246h48c28 0 28-55 56-55"/><path d="M708 306h48c28 0 28 53 56 53"/><path d="M553 342v82"/>
+    </g>
+
+    <rect x="54" y="462" width="254" height="32" rx="16" fill="url(#blue)" fill-opacity=".14" stroke="#0A84FF" stroke-opacity=".55"/>
+    <text x="181" y="483" text-anchor="middle" fill="#7FC8FF" font-size="13" font-weight="600">WPF + Win32 · .NET Framework</text>
+  </g>
+</svg>

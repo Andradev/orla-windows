@@ -12,11 +12,11 @@ jobs:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v7
-      - name: Build VictorShell
+      - name: Build Orla
         shell: powershell
         run: .\Build.ps1
       - name: Upload unsigned build artifact
         uses: actions/upload-artifact@v7
         with:
-          name: VictorShell-unsigned-x64
-          path: dist\VictorShell.exe
+          name: Orla-unsigned-x64
+          path: dist\Orla.exe

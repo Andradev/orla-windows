@@ -1,0 +1,43 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 520" role="img" aria-labelledby="title desc">
+  <title id="title">Comparação de desempenho</title>
+  <desc id="desc">Orla utiliza menos memória, CPU e processos que o Seelen UI no computador medido.</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1200" y2="520" gradientUnits="userSpaceOnUse"><stop stop-color="#151923"/><stop offset="1" stop-color="#090A0F"/></linearGradient>
+    <linearGradient id="orla" x1="0" x2="1"><stop stop-color="#5AC8FA"/><stop offset="1" stop-color="#0A84FF"/></linearGradient>
+  </defs>
+  <rect width="1200" height="520" rx="28" fill="url(#bg)"/>
+  <g font-family="Segoe UI, Inter, sans-serif">
+    <text x="58" y="70" fill="#F5F7FA" font-size="30" font-weight="650">Leve por projeto, não por promessa.</text>
+    <text x="58" y="102" fill="#9FA8B8" font-size="16">Medição contínua de 10 minutos no mesmo Windows 11 e nos mesmos dois monitores.</text>
+
+    <g transform="translate(58 148)">
+      <text x="0" y="0" fill="#DDE2EA" font-size="15" font-weight="600">WORKING SET MÉDIO</text>
+      <text x="0" y="34" fill="#7FC8FF" font-size="15">Orla</text>
+      <rect x="116" y="18" width="75" height="25" rx="12.5" fill="url(#orla)"/>
+      <text x="204" y="36" fill="#F5F7FA" font-size="15" font-weight="650">78,08 MiB</text>
+      <text x="0" y="76" fill="#A7AFBE" font-size="15">Seelen UI</text>
+      <rect x="116" y="60" width="842" height="25" rx="12.5" fill="#5C6270"/>
+      <text x="972" y="78" fill="#D7DAE1" font-size="15" font-weight="650">868,46 MiB</text>
+      <text x="116" y="110" fill="#7FC8FF" font-size="13">~91% menor no cenário medido</text>
+    </g>
+
+    <g transform="translate(58 305)">
+      <rect width="332" height="148" rx="20" fill="#FFFFFF" fill-opacity=".045" stroke="#FFFFFF" stroke-opacity=".09"/>
+      <text x="24" y="34" fill="#A7AFBE" font-size="13" font-weight="600">CPU MÉDIA</text>
+      <text x="24" y="84" fill="#62BDFF" font-size="36" font-weight="700">0,458%</text>
+      <text x="24" y="118" fill="#8D96A5" font-size="14">Seelen UI: 1,144%</text>
+    </g>
+    <g transform="translate(414 305)">
+      <rect width="332" height="148" rx="20" fill="#FFFFFF" fill-opacity=".045" stroke="#FFFFFF" stroke-opacity=".09"/>
+      <text x="24" y="34" fill="#A7AFBE" font-size="13" font-weight="600">PROCESSOS</text>
+      <text x="24" y="84" fill="#62BDFF" font-size="36" font-weight="700">1</text>
+      <text x="24" y="118" fill="#8D96A5" font-size="14">Seelen UI: 10–15</text>
+    </g>
+    <g transform="translate(770 305)">
+      <rect width="372" height="148" rx="20" fill="#FFFFFF" fill-opacity=".045" stroke="#FFFFFF" stroke-opacity=".09"/>
+      <text x="24" y="34" fill="#A7AFBE" font-size="13" font-weight="600">ESTABILIDADE</text>
+      <text x="24" y="82" fill="#32D74B" font-size="30" font-weight="700">112/112</text>
+      <text x="24" y="118" fill="#8D96A5" font-size="14">amostras responsivas · 0 erros</text>
+    </g>
+  </g>
+</svg>

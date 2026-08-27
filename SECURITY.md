@@ -11,6 +11,6 @@ Abra um Security Advisory privado no GitHub do projeto. Evite publicar detalhes 
 - nenhuma modificação de política, serviço, driver ou arquivo do sistema;
 - hook global apenas para distinguir `Win` sozinho de combinações, ativado somente quando Fluent Search existe;
 - restauração explícita da barra nativa ao sair/desinstalar;
-- configurações locais em `%LOCALAPPDATA%\VictorShell`.
+- configurações locais em `%LOCALAPPDATA%\Orla`.
 
 O executável gerado por `Build.ps1` não é assinado. Verifique o código-fonte e compile localmente para maior confiança.

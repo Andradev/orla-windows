@@ -3,34 +3,32 @@
 ## A barra nativa não voltou
 
 ```powershell
-%LOCALAPPDATA%\VictorShell\VictorShell.exe --restore
+%LOCALAPPDATA%\Orla\Orla.exe --restore
 ```
 
-Se o executável não existir, reinicie o Explorer pelo Gerenciador de Tarefas ou faça logoff/login.
+Se o arquivo não existir, reinicie o Explorer pelo Gerenciador de Tarefas ou faça logoff/login.
 
-## A tecla Windows não abre o Fluent Search
+## Fluent Search não abre ou aparece na tela errada
 
-Confirme:
+1. Confirme `FluentSearchPath` em `%LOCALAPPDATA%\Orla\settings.ini`.
+2. Confirme `BareWindowsKeyOpensFluent=true`.
+3. Clique no botão de busca da tela desejada; Orla pede a abertura pelo canal local do Fluent e só então posiciona a janela nessa tela.
+4. Se o processo do Fluent estiver iniciando, aguarde alguns segundos e tente novamente.
 
-1. `FluentSearchPath` aponta para o executável correto;
-2. o atalho em `FluentSearchHotkey` corresponde ao configurado no Fluent Search;
-3. `BareWindowsKeyOpensFluent=true`;
-4. o app em foco não está elevado enquanto VictorShell não está.
-
-Sem Fluent Search instalado, a tecla Windows fica nativa por segurança.
+Sem Fluent Search instalado, a tecla Windows permanece nativa.
 
 ## Um aplicativo elevado não recebe foco
 
-O Windows impede que processos normais controlem janelas elevadas. Execute ambos no mesmo nível. Não é recomendado iniciar VictorShell como administrador apenas para contornar isso.
+O Windows impede que processos normais controlem janelas elevadas. Execute ambos no mesmo nível. Não inicie Orla como administrador apenas para contornar essa proteção.
 
 ## O dock não aparece
 
-Encoste o mouse na última linha de pixels da borda inferior do monitor. O dock leva aproximadamente 100–500 ms para aparecer, dependendo do ciclo de detecção.
+Encoste o mouse na última linha de pixels da borda inferior do monitor. O dock aparece após aproximadamente 100–500 ms, conforme o ciclo de detecção.
 
 ## Alterei o INI e nada mudou
 
-Saia pelo menu de contexto, edite `%LOCALAPPDATA%\VictorShell\settings.ini` e inicie novamente.
+Saia pelo menu de contexto, edite `%LOCALAPPDATA%\Orla\settings.ini` e inicie novamente.
 
 ## Logs
 
-`%LOCALAPPDATA%\VictorShell\VictorShell.log`
+`%LOCALAPPDATA%\Orla\Orla.log`

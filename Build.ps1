@@ -6,8 +6,8 @@ $ErrorActionPreference = 'Stop'
 $compiler = 'C:\Windows\Microsoft.NET\Framework64\v4.0.30319\csc.exe'
 $framework = 'C:\Windows\Microsoft.NET\Framework64\v4.0.30319'
 $wpf = Join-Path $framework 'WPF'
-$source = Join-Path $PSScriptRoot 'src\VictorShell.cs'
-$output = Join-Path $OutputDirectory 'VictorShell.exe'
+$source = Join-Path $PSScriptRoot 'src\Orla.cs'
+$output = Join-Path $OutputDirectory 'Orla.exe'
 
 if (-not (Test-Path -LiteralPath $compiler)) {
     throw 'Compilador .NET Framework 4.8 não encontrado.'
@@ -32,8 +32,8 @@ $arguments = @(
     "`"$source`""
 )
 
-$stdout = Join-Path $env:TEMP 'victorshell-csc.stdout.txt'
-$stderr = Join-Path $env:TEMP 'victorshell-csc.stderr.txt'
+$stdout = Join-Path $env:TEMP 'orla-csc.stdout.txt'
+$stderr = Join-Path $env:TEMP 'orla-csc.stderr.txt'
 Remove-Item -LiteralPath $stdout, $stderr -Force -ErrorAction SilentlyContinue
 $process = Start-Process -FilePath $compiler -ArgumentList $arguments -Wait -PassThru `
     -RedirectStandardOutput $stdout -RedirectStandardError $stderr

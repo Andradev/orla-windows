@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" role="img" aria-labelledby="title desc">
+  <title id="title">Orla</title>
+  <desc id="desc">Símbolo circular azul formado por duas bordas suaves.</desc>
+  <defs>
+    <linearGradient id="bg" x1="32" y1="24" x2="224" y2="232" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#55B7FF"/>
+      <stop offset="0.48" stop-color="#0A84FF"/>
+      <stop offset="1" stop-color="#5E5CE6"/>
+    </linearGradient>
+    <filter id="shadow" x="-30%" y="-30%" width="160%" height="160%">
+      <feDropShadow dx="0" dy="12" stdDeviation="14" flood-color="#0A84FF" flood-opacity=".28"/>
+    </filter>
+  </defs>
+  <rect x="16" y="16" width="224" height="224" rx="64" fill="#111319"/>
+  <circle cx="128" cy="128" r="74" fill="none" stroke="url(#bg)" stroke-width="20" stroke-linecap="round" filter="url(#shadow)"/>
+  <path d="M74 178c30 27 78 28 108 1" fill="none" stroke="#EAF6FF" stroke-width="12" stroke-linecap="round" opacity=".96"/>
+</svg>
