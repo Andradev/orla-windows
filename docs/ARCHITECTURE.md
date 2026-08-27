@@ -17,13 +17,15 @@ Orla é um único executável WPF/.NET Framework x64, sem pacotes externos, serv
 
 Cada botão informa o `Screen.DeviceName` de sua própria tela; a tecla Windows usa a tela do cursor. Antes de enviar `RequestOpen` pelo pipe local, Orla transfere o HWND ainda oculto para a área útil solicitada. Depois que o Fluent o torna visível, Orla não altera mais a posição: o próprio Fluent controla a transição entre a altura temporária e a barra compacta, sem um segundo salto vertical.
 
+Os pedidos são serializados em vez de descartados. Se a busca está visível, o mesmo comando a oculta e a espera termina assim que esse estado é confirmado; um novo toque pode reabri-la imediatamente.
+
 Essa ordem é importante: reexibir diretamente o HWND oculto produz uma janela visualmente aberta, mas sem o estado interno de pesquisa. Orla não simula o hotkey, não força uma janela oculta a aparecer e não reinicia à força o Fluent Search.
 
 ## Desempenho
 
 Topbars opacas e docks transparentes usam renderização por software para manter previsível a memória em GPUs integradas. Relógio/rede/bateria são atualizados a cada 15 segundos. Foco usa evento nativo; o catálogo do dock roda a cada 2 segundos; borda e sobreposição usam cache.
 
-O dock mantém o histórico dos dois últimos aplicativos externos, ignorando suas próprias janelas e janelas auxiliares do mesmo processo. Ao minimizar o aplicativo ativo, Orla promove o aplicativo anterior e sincroniza imediatamente os indicadores dos dois monitores.
+O dock mantém o histórico dos dois últimos aplicativos externos, ignorando suas próprias janelas e janelas auxiliares do mesmo processo. Ao minimizar o aplicativo ativo, Orla promove o aplicativo anterior e sincroniza imediatamente os indicadores dos dois monitores. Antes de ativar um app, resolve novamente seus HWNDs para não usar uma janela substituída desde o último refresh; uma recusa temporária de foco do Windows recebe tentativas curtas e limitadas.
 
 ## Multi-monitor
 

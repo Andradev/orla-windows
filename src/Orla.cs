@@ -29,8 +29,8 @@ using WpfEllipse = System.Windows.Shapes.Ellipse;
 [assembly: AssemblyCompany("Orla contributors")]
 [assembly: AssemblyProduct("Orla")]
 [assembly: AssemblyCopyright("MIT License")]
-[assembly: AssemblyVersion("1.1.3.0")]
-[assembly: AssemblyFileVersion("1.1.3.0")]
+[assembly: AssemblyVersion("1.1.4.0")]
+[assembly: AssemblyFileVersion("1.1.4.0")]
 
 namespace Orla
 {
@@ -90,7 +90,7 @@ namespace Orla
         private DispatcherTimer _taskbarTimer;
         private bool _exiting;
         private DateTime _lastFluentRequestAt = DateTime.MinValue;
-        private int _fluentRecoveryInProgress;
+        private readonly object _fluentRequestSync = new object();
 
         internal ShellController(Application application)
         {
@@ -261,8 +261,6 @@ namespace Orla
         {
             try
             {
-                string targetScreen = ResolveFluentTargetScreen(targetScreenDeviceName);
-                Logger.Write("Fluent Search solicitado para " + targetScreen + ".");
                 string path = _settings.FluentSearchPath;
                 if (!File.Exists(path))
                 {
@@ -270,12 +268,18 @@ namespace Orla
                     return;
                 }
 
-                DateTime now = DateTime.Now;
-                if ((now - _lastFluentRequestAt).TotalMilliseconds < 350) return;
+                DateTime now = DateTime.UtcNow;
+                if ((now - _lastFluentRequestAt).TotalMilliseconds < 75) return;
                 _lastFluentRequestAt = now;
 
-                if (Interlocked.CompareExchange(ref _fluentRecoveryInProgress, 1, 0) != 0) return;
-                ThreadPool.QueueUserWorkItem(delegate { ActivateFluentSearch(path, targetScreen); });
+                string targetScreen = ResolveFluentTargetScreen(targetScreenDeviceName);
+                Logger.Write("Fluent Search solicitado para " + targetScreen + ".");
+                ThreadPool.QueueUserWorkItem(delegate
+                {
+                    // Serializa sem descartar: toques rápidos alternam abrir/ocultar
+                    // na mesma ordem em que foram recebidos.
+                    lock (_fluentRequestSync) ActivateFluentSearch(path, targetScreen);
+                });
             }
             catch (Exception exception)
             {
@@ -331,16 +335,16 @@ namespace Orla
             return false;
         }
 
-        private static IntPtr WaitForVisibleFluentSearchWindow(int timeoutMilliseconds)
+        private static bool WaitForFluentSearchVisibility(bool visible, int timeoutMilliseconds)
         {
             Stopwatch stopwatch = Stopwatch.StartNew();
             while (stopwatch.ElapsedMilliseconds < timeoutMilliseconds)
             {
                 IntPtr handle = WindowCatalog.FindProcessWindow("FluentSearch", "Fluent Search", true);
-                if (handle != IntPtr.Zero) return handle;
+                if ((handle != IntPtr.Zero) == visible) return true;
                 Thread.Sleep(5);
             }
-            return IntPtr.Zero;
+            return false;
         }
 
         private static bool MoveFluentSearchToScreen(IntPtr handle, string targetScreenDeviceName)
@@ -380,12 +384,20 @@ namespace Orla
                 }
                 foreach (Process process in running) process.Dispose();
 
+                bool wasVisible = WindowCatalog.FindProcessWindow("FluentSearch", "Fluent Search", true) != IntPtr.Zero;
                 if (RequestFluentSearchWindow(4000, targetScreenDeviceName))
                 {
-                    IntPtr searchWindow = WaitForVisibleFluentSearchWindow(1600);
-                    Logger.Write(searchWindow != IntPtr.Zero
-                        ? "Fluent Search aberto pelo canal nativo em " + targetScreenDeviceName + "."
-                        : "Fluent Search recebeu o comando, mas a janela não ficou visível.");
+                    bool reachedExpectedState = WaitForFluentSearchVisibility(!wasVisible, wasVisible ? 500 : 1600);
+                    if (reachedExpectedState)
+                    {
+                        Logger.Write(wasVisible
+                            ? "Fluent Search ocultado pelo toggle nativo."
+                            : "Fluent Search aberto pelo canal nativo em " + targetScreenDeviceName + ".");
+                    }
+                    else
+                    {
+                        Logger.Write("Fluent Search recebeu o toggle, mas não mudou de visibilidade no tempo esperado.");
+                    }
                 }
                 else
                     Logger.Write("O canal nativo do Fluent Search não respondeu em " + targetScreenDeviceName + ".");
@@ -393,10 +405,6 @@ namespace Orla
             catch (Exception exception)
             {
                 Logger.Write("Falha ao recuperar ativação do Fluent Search: " + exception.Message);
-            }
-            finally
-            {
-                Interlocked.Exchange(ref _fluentRecoveryInProgress, 0);
             }
         }
 
@@ -1479,22 +1487,26 @@ namespace Orla
             EnableApplicationDrag(button, applicationKey);
             button.Click += delegate
             {
-                if (windows.Count == 0)
+                // Aplicativos Chromium/WebView podem trocar o HWND principal sem
+                // trocar o processo. Resolva novamente no clique para nunca usar
+                // a fotografia de até dois segundos atrás que desenhou o botão.
+                List<WindowItem> currentWindows = ResolveCurrentApplicationWindows(applicationKey, path, pinned);
+                if (currentWindows.Count == 0)
                 {
                     Ui.PlayDockBounce(button);
                     ShellActions.Start(path);
                     return;
                 }
                 IntPtr foreground = NativeMethods.GetForegroundWindow();
-                WindowItem focused = windows.FirstOrDefault(delegate(WindowItem item) { return item.Handle == foreground; });
+                WindowItem focused = currentWindows.FirstOrDefault(delegate(WindowItem item) { return item.Handle == foreground; });
                 if (focused == null)
-                    focused = windows.FirstOrDefault(delegate(WindowItem item)
+                    focused = currentWindows.FirstOrDefault(delegate(WindowItem item)
                     {
                         return item.Handle == _lastExternalForeground && !NativeMethods.IsIconic(item.Handle);
                     });
                 bool wasActive = focused != null;
-                IntPtr fallback = wasActive ? ResolvePreviousExternalForeground(windows) : IntPtr.Zero;
-                ShellActions.ActivateOrMinimize((focused ?? windows[0]).Handle, wasActive, fallback);
+                IntPtr fallback = wasActive ? ResolvePreviousExternalForeground(currentWindows) : IntPtr.Zero;
+                ShellActions.ActivateOrMinimize((focused ?? currentWindows[0]).Handle, wasActive, fallback);
                 if (wasActive && fallback != IntPtr.Zero) _controller.SynchronizeForeground(fallback);
             };
             button.PreviewMouseDown += delegate(object sender, MouseButtonEventArgs eventArgs)
@@ -1506,6 +1518,17 @@ namespace Orla
             };
             button.ContextMenu = CreateApplicationMenu(name, path, windows, pinned);
             return button;
+        }
+
+        private List<WindowItem> ResolveCurrentApplicationWindows(string applicationKey, string path, bool pinned)
+        {
+            return WindowCatalog.GetVisibleWindows().Where(delegate(WindowItem item)
+            {
+                if (item.IsOrla) return false;
+                return pinned
+                    ? MatchesPinnedApplication(item, path)
+                    : string.Equals(ApplicationKey(item), applicationKey, StringComparison.OrdinalIgnoreCase);
+            }).ToList();
         }
 
         private void EnableApplicationDrag(Button button, string applicationKey)
@@ -2116,19 +2139,36 @@ namespace Orla
             if (handle == IntPtr.Zero) return;
             if (wasActive)
             {
-                if (fallbackHandle != IntPtr.Zero) ActivateWindow(fallbackHandle);
+                if (fallbackHandle != IntPtr.Zero) TryActivateWindow(fallbackHandle);
                 NativeMethods.ShowWindowAsync(handle, NativeMethods.SwMinimize);
                 if (fallbackHandle != IntPtr.Zero && NativeMethods.GetForegroundWindow() != fallbackHandle)
-                    ActivateWindow(fallbackHandle);
+                    ActivateWindowWithRetry(fallbackHandle);
                 return;
             }
 
-            ActivateWindow(handle);
+            ActivateWindowWithRetry(handle);
         }
 
-        private static void ActivateWindow(IntPtr handle)
+        private static void ActivateWindowWithRetry(IntPtr handle)
         {
-            if (handle == IntPtr.Zero) return;
+            if (TryActivateWindow(handle)) return;
+
+            ThreadPool.QueueUserWorkItem(delegate
+            {
+                int[] delays = { 35, 85, 160, 300 };
+                foreach (int delay in delays)
+                {
+                    Thread.Sleep(delay);
+                    if (!NativeMethods.IsWindow(handle)) return;
+                    if (TryActivateWindow(handle)) return;
+                }
+                Logger.Write("Windows recusou ativação da janela HWND " + handle.ToInt64().ToString(CultureInfo.InvariantCulture) + " após novas tentativas.");
+            });
+        }
+
+        private static bool TryActivateWindow(IntPtr handle)
+        {
+            if (handle == IntPtr.Zero || !NativeMethods.IsWindow(handle)) return false;
 
             if (NativeMethods.IsIconic(handle)) NativeMethods.ShowWindowAsync(handle, NativeMethods.SwRestore);
             NativeMethods.ShowWindowAsync(handle, NativeMethods.SwShow);
@@ -2136,9 +2176,13 @@ namespace Orla
             IntPtr currentForeground = NativeMethods.GetForegroundWindow();
             uint foregroundProcessId;
             uint foregroundThread = NativeMethods.GetWindowThreadProcessId(currentForeground, out foregroundProcessId);
+            uint targetProcessId;
+            uint targetThread = NativeMethods.GetWindowThreadProcessId(handle, out targetProcessId);
             uint currentThread = NativeMethods.GetCurrentThreadId();
-            bool attached = foregroundThread != 0 && foregroundThread != currentThread
+            bool attachedForeground = foregroundThread != 0 && foregroundThread != currentThread
                 && NativeMethods.AttachThreadInput(currentThread, foregroundThread, true);
+            bool attachedTarget = targetThread != 0 && targetThread != currentThread && targetThread != foregroundThread
+                && NativeMethods.AttachThreadInput(currentThread, targetThread, true);
             try
             {
                 NativeMethods.BringWindowToTop(handle);
@@ -2146,27 +2190,10 @@ namespace Orla
             }
             finally
             {
-                if (attached) NativeMethods.AttachThreadInput(currentThread, foregroundThread, false);
+                if (attachedTarget) NativeMethods.AttachThreadInput(currentThread, targetThread, false);
+                if (attachedForeground) NativeMethods.AttachThreadInput(currentThread, foregroundThread, false);
             }
-
-            if (NativeMethods.GetForegroundWindow() != handle)
-            {
-                uint targetProcessId;
-                uint targetThread = NativeMethods.GetWindowThreadProcessId(handle, out targetProcessId);
-                bool attachedTarget = targetThread != 0 && targetThread != currentThread
-                    && NativeMethods.AttachThreadInput(currentThread, targetThread, true);
-                try
-                {
-                    NativeMethods.BringWindowToTop(handle);
-                    NativeMethods.SetForegroundWindow(handle);
-                }
-                finally
-                {
-                    if (attachedTarget) NativeMethods.AttachThreadInput(currentThread, targetThread, false);
-                }
-                if (NativeMethods.GetForegroundWindow() != handle)
-                    Logger.Write("Windows recusou ativação da janela HWND " + handle.ToInt64().ToString(CultureInfo.InvariantCulture) + ".");
-            }
+            return NativeMethods.GetForegroundWindow() == handle;
         }
 
         internal static void CloseWindow(IntPtr handle)
@@ -2579,6 +2606,9 @@ namespace Orla
 
         [DllImport("user32.dll")]
         internal static extern bool IsWindowVisible(IntPtr handle);
+
+        [DllImport("user32.dll")]
+        internal static extern bool IsWindow(IntPtr handle);
 
         [DllImport("user32.dll")]
         internal static extern bool IsIconic(IntPtr handle);

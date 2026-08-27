@@ -24,12 +24,12 @@ O projeto nasceu de uma meta simples: manter a fluidez visual de um dock moderno
 - topbar registrada como AppBar, reservando espaço para não cobrir janelas maximizadas;
 - dock com ocultação automática e revelação em toda a borda inferior;
 - aplicativos abertos aparecem nos dois docks e janelas do mesmo app são agrupadas;
-- clique no app ativo minimiza e devolve o foco ao aplicativo anterior; outro clique restaura; clicar em outro app o ativa;
+- clique no app ativo minimiza e devolve o foco ao aplicativo anterior; outro clique restaura; clicar em outro app o ativa com confirmação e tentativas limitadas quando o Windows adia o foco;
 - indicador de foco atualizado imediatamente por evento nativo do Windows;
 - ordem dos aplicativos por arrastar e soltar, sem transformar apps fechados em fixos;
 - somente o Explorador fica fixado por padrão;
 - menu de contexto para janelas, nova instância, fixar, desafixar e fechar;
-- Fluent Search opcional: `Win` isolado abre a busca pelo canal local da própria instância, já posicionada no monitor em uso e sem salto visível;
+- Fluent Search opcional: `Win` isolado alterna abrir/ocultar pelo canal local da própria instância, aceita toques rápidos em ordem e posiciona no monitor em uso sem salto visível;
 - botões do Fluent Search em cada tela sempre abrem a busca naquela tela;
 - `Win+Shift+S`, `Win+E`, `Win+D` e outras combinações continuam no Windows;
 - restauração explícita da barra nativa ao sair, desinstalar ou usar `--restore`.
