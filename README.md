@@ -25,7 +25,8 @@ O projeto nasceu de uma meta simples: manter a fluidez visual de um dock moderno
 - topbar registrada como AppBar, reservando espaço para não cobrir janelas maximizadas;
 - dock com ocultação automática e revelação em toda a borda inferior;
 - aplicativos abertos aparecem nos dois docks e janelas do mesmo app são agrupadas;
-- clique no app ativo minimiza e devolve o foco ao aplicativo anterior; outro clique restaura; clicar em outro app o ativa com confirmação e tentativas limitadas quando o Windows adia o foco;
+- clique no app ativo minimiza e devolve o foco ao aplicativo anterior; clicar em outro app o ativa mesmo quando Teams/WebView substitui sua janela durante a operação, com tentativas curtas que são canceladas assim que o usuário escolhe outro destino;
+- resposta do dock em duas direções: uma elevação curta confirma abertura/ativação e um recuo confirma minimização; somente o conteúdo se move, preservando a área clicável inteira, e as animações respeitam a preferência de movimento do Windows;
 - indicador de foco atualizado imediatamente por evento nativo do Windows;
 - ordem dos aplicativos por arrastar e soltar, sem transformar apps fechados em fixos;
 - nenhum aplicativo fica fixado por padrão; favoritos são adicionados explicitamente pelo menu de contexto;

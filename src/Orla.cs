@@ -28,8 +28,8 @@ using WpfEllipse = System.Windows.Shapes.Ellipse;
 [assembly: AssemblyCompany("Orla contributors")]
 [assembly: AssemblyProduct("Orla")]
 [assembly: AssemblyCopyright("MIT License")]
-[assembly: AssemblyVersion("1.2.8.0")]
-[assembly: AssemblyFileVersion("1.2.8.0")]
+[assembly: AssemblyVersion("1.2.9.0")]
+[assembly: AssemblyFileVersion("1.2.9.0")]
 
 namespace Orla
 {
@@ -1766,6 +1766,7 @@ namespace Orla
                     });
                 bool wasActive = focused != null;
                 IntPtr fallback = wasActive ? ResolvePreviousExternalForeground(currentWindows) : IntPtr.Zero;
+                Ui.PlayDockAction(button, wasActive);
                 ShellActions.ActivateOrMinimize((focused ?? currentWindows[0]).Handle, wasActive, fallback);
                 if (wasActive && fallback != IntPtr.Zero) _controller.SynchronizeForeground(fallback);
             };
@@ -1882,7 +1883,11 @@ namespace Orla
             Button button = Ui.WrapButton(content, Loc.ShowDesktop, 39, 39);
             Ui.EnableDockMotion(button);
             button.Margin = new Thickness(2, 0, 2, 0);
-            button.Click += delegate { ShellActions.ShowDesktop(); };
+            button.Click += delegate
+            {
+                Ui.PlayDockBounce(button);
+                ShellActions.ShowDesktop();
+            };
             return button;
         }
 
@@ -1895,7 +1900,11 @@ namespace Orla
             Button button = Ui.WrapButton(content, Loc.RecycleBin, 39, 39);
             Ui.EnableDockMotion(button);
             button.Margin = new Thickness(2, 0, 2, 0);
-            button.Click += delegate { ShellActions.OpenRecycleBin(); };
+            button.Click += delegate
+            {
+                Ui.PlayDockBounce(button);
+                ShellActions.OpenRecycleBin();
+            };
             return button;
         }
 
@@ -1940,6 +1949,14 @@ namespace Orla
 
     internal static class Ui
     {
+        private const string DockMotionResourceKey = "Orla.DockMotion";
+
+        private sealed class DockMotionState
+        {
+            internal ScaleTransform Scale;
+            internal TranslateTransform Translate;
+        }
+
         internal static readonly System.Windows.Media.Brush PrimaryTextBrush = new SolidColorBrush(Color.FromRgb(242, 242, 247));
         internal static readonly System.Windows.Media.Brush SecondaryTextBrush = new SolidColorBrush(Color.FromRgb(174, 174, 178));
         internal static readonly System.Windows.Media.Brush ErrorBrush = new SolidColorBrush(Color.FromRgb(255, 69, 58));
@@ -2094,31 +2111,49 @@ namespace Orla
         {
             if (!SystemParameters.ClientAreaAnimation) return;
 
+            // Anime somente o conteúdo. Transformar o Button também move sua
+            // área de hit-test e pode cancelar o Click no MouseUp embora o
+            // usuário tenha visto a animação de pressão.
+            FrameworkElement target = button.Content as FrameworkElement;
+            if (target == null) return;
             ScaleTransform scale = new ScaleTransform(1.0, 1.0);
             TranslateTransform translate = new TranslateTransform(0, 0);
             TransformGroup transforms = new TransformGroup();
             transforms.Children.Add(scale);
             transforms.Children.Add(translate);
-            button.RenderTransform = transforms;
-            button.RenderTransformOrigin = new System.Windows.Point(0.5, 0.72);
+            target.RenderTransform = transforms;
+            target.RenderTransformOrigin = new System.Windows.Point(0.5, 0.72);
+            button.Resources[DockMotionResourceKey] = new DockMotionState
+            {
+                Scale = scale,
+                Translate = translate
+            };
 
             button.MouseEnter += delegate
             {
                 Panel.SetZIndex(button, 10);
-                AnimateDockButton(scale, translate, 1.10, -2.0, 170);
+                AnimateDockButton(scale, translate, 1.035, -1.0, 105);
             };
             button.MouseLeave += delegate
             {
                 Panel.SetZIndex(button, 0);
-                AnimateDockButton(scale, translate, 1.0, 0.0, 150);
+                AnimateDockButton(scale, translate, 1.0, 0.0, 90);
             };
             button.PreviewMouseLeftButtonDown += delegate
             {
-                AnimateDockButton(scale, translate, 0.96, 1.0, 80);
+                AnimateDockButton(scale, translate, 0.965, 1.0, 55);
             };
             button.PreviewMouseLeftButtonUp += delegate
             {
-                AnimateDockButton(scale, translate, button.IsMouseOver ? 1.10 : 1.0, button.IsMouseOver ? -2.0 : 0.0, 120);
+                AnimateDockButton(scale, translate,
+                    button.IsMouseOver ? 1.035 : 1.0,
+                    button.IsMouseOver ? -1.0 : 0.0, 80);
+            };
+            button.LostMouseCapture += delegate
+            {
+                AnimateDockButton(scale, translate,
+                    button.IsMouseOver ? 1.035 : 1.0,
+                    button.IsMouseOver ? -1.0 : 0.0, 80);
             };
         }
 
@@ -2141,21 +2176,36 @@ namespace Orla
 
         internal static void PlayDockBounce(Button button)
         {
-            if (!SystemParameters.ClientAreaAnimation) return;
-            TransformGroup group = button.RenderTransform as TransformGroup;
-            if (group == null || group.Children.Count < 2) return;
-            TranslateTransform translate = group.Children[1] as TranslateTransform;
-            if (translate == null) return;
+            PlayDockAction(button, false);
+        }
 
-            double resting = button.IsMouseOver ? -2.0 : 0.0;
-            CubicEase easing = new CubicEase { EasingMode = EasingMode.EaseOut };
-            DoubleAnimationUsingKeyFrames bounce = new DoubleAnimationUsingKeyFrames();
-            bounce.KeyFrames.Add(new EasingDoubleKeyFrame(resting, KeyTime.FromTimeSpan(TimeSpan.Zero), easing));
-            bounce.KeyFrames.Add(new EasingDoubleKeyFrame(-7.0, KeyTime.FromTimeSpan(TimeSpan.FromMilliseconds(85)), easing));
-            bounce.KeyFrames.Add(new EasingDoubleKeyFrame(resting, KeyTime.FromTimeSpan(TimeSpan.FromMilliseconds(175)), easing));
-            bounce.KeyFrames.Add(new EasingDoubleKeyFrame(-4.0, KeyTime.FromTimeSpan(TimeSpan.FromMilliseconds(245)), easing));
-            bounce.KeyFrames.Add(new EasingDoubleKeyFrame(resting, KeyTime.FromTimeSpan(TimeSpan.FromMilliseconds(330)), easing));
-            translate.BeginAnimation(TranslateTransform.YProperty, bounce, HandoffBehavior.SnapshotAndReplace);
+        internal static void PlayDockAction(Button button, bool minimizing)
+        {
+            if (!SystemParameters.ClientAreaAnimation) return;
+            DockMotionState state = button.Resources[DockMotionResourceKey] as DockMotionState;
+            if (state == null) return;
+
+            double restingScale = button.IsMouseOver ? 1.035 : 1.0;
+            double restingY = button.IsMouseOver ? -1.0 : 0.0;
+            double actionScale = minimizing ? 0.975 : 1.045;
+            double actionY = minimizing ? 2.5 : -3.0;
+            CubicEase outward = new CubicEase { EasingMode = EasingMode.EaseOut };
+            CubicEase settle = new CubicEase { EasingMode = EasingMode.EaseInOut };
+
+            DoubleAnimationUsingKeyFrames scaleAnimation = new DoubleAnimationUsingKeyFrames();
+            scaleAnimation.KeyFrames.Add(new EasingDoubleKeyFrame(actionScale,
+                KeyTime.FromTimeSpan(TimeSpan.FromMilliseconds(55)), outward));
+            scaleAnimation.KeyFrames.Add(new EasingDoubleKeyFrame(restingScale,
+                KeyTime.FromTimeSpan(TimeSpan.FromMilliseconds(155)), settle));
+            state.Scale.BeginAnimation(ScaleTransform.ScaleXProperty, scaleAnimation, HandoffBehavior.SnapshotAndReplace);
+            state.Scale.BeginAnimation(ScaleTransform.ScaleYProperty, scaleAnimation, HandoffBehavior.SnapshotAndReplace);
+
+            DoubleAnimationUsingKeyFrames movement = new DoubleAnimationUsingKeyFrames();
+            movement.KeyFrames.Add(new EasingDoubleKeyFrame(actionY,
+                KeyTime.FromTimeSpan(TimeSpan.FromMilliseconds(55)), outward));
+            movement.KeyFrames.Add(new EasingDoubleKeyFrame(restingY,
+                KeyTime.FromTimeSpan(TimeSpan.FromMilliseconds(155)), settle));
+            state.Translate.BeginAnimation(TranslateTransform.YProperty, movement, HandoffBehavior.SnapshotAndReplace);
         }
 
         private static void AnimateScale(ScaleTransform scale, double target, int durationMs)
@@ -2436,6 +2486,7 @@ namespace Orla
         private static int _trayOverflowCloseRequested;
         private static int _trayOverflowKnownOpen;
         private static int _trayOverflowLastClosedTick;
+        private static int _activationRequest;
         internal static event Action<bool> TrayOverflowStateChanged;
 
         // EVENT_OBJECT_CREATE/SHOW chega antes do polling enxergar o flyout.
@@ -2923,6 +2974,9 @@ namespace Orla
             if (handle == IntPtr.Zero) return;
             if (wasActive)
             {
+                // Um clique novo invalida qualquer tentativa tardia iniciada
+                // por um clique anterior.
+                Interlocked.Increment(ref _activationRequest);
                 if (fallbackHandle != IntPtr.Zero) TryActivateWindow(fallbackHandle);
                 NativeMethods.ShowWindowAsync(handle, NativeMethods.SwMinimize);
                 if (fallbackHandle != IntPtr.Zero && NativeMethods.GetForegroundWindow() != fallbackHandle)
@@ -2935,7 +2989,13 @@ namespace Orla
 
         internal static void ActivateWindowWithRetry(IntPtr handle)
         {
-            if (TryActivateWindow(handle)) return;
+            uint targetProcessId;
+            NativeMethods.GetWindowThreadProcessId(handle, out targetProcessId);
+            if (targetProcessId == 0) return;
+
+            int request = Interlocked.Increment(ref _activationRequest);
+            IntPtr originalForeground = NativeMethods.GetForegroundWindow();
+            if (TryActivateWindow(handle, targetProcessId)) return;
 
             ThreadPool.QueueUserWorkItem(delegate
             {
@@ -2943,16 +3003,31 @@ namespace Orla
                 foreach (int delay in delays)
                 {
                     Thread.Sleep(delay);
-                    if (!NativeMethods.IsWindow(handle)) return;
-                    if (TryActivateWindow(handle)) return;
+                    if (request != Volatile.Read(ref _activationRequest)) return;
+                    if (IsProcessForeground(targetProcessId)) return;
+                    if (!CanContinueActivation(originalForeground, targetProcessId)) return;
+
+                    IntPtr currentTarget = ResolveActivationTarget(targetProcessId, handle);
+                    if (currentTarget == IntPtr.Zero) return;
+                    if (TryActivateWindow(currentTarget, targetProcessId)) return;
                 }
-                Logger.Write("Windows recusou ativação da janela HWND " + handle.ToInt64().ToString(CultureInfo.InvariantCulture) + " após novas tentativas.");
+                Logger.Write("Windows recusou ativação da janela HWND "
+                    + handle.ToInt64().ToString(CultureInfo.InvariantCulture)
+                    + " (PID " + targetProcessId.ToString(CultureInfo.InvariantCulture)
+                    + ") após novas tentativas.");
             });
         }
 
         private static bool TryActivateWindow(IntPtr handle)
         {
-            if (handle == IntPtr.Zero || !NativeMethods.IsWindow(handle)) return false;
+            uint targetProcessId;
+            NativeMethods.GetWindowThreadProcessId(handle, out targetProcessId);
+            return TryActivateWindow(handle, targetProcessId);
+        }
+
+        private static bool TryActivateWindow(IntPtr handle, uint targetProcessId)
+        {
+            if (handle == IntPtr.Zero || targetProcessId == 0 || !NativeMethods.IsWindow(handle)) return false;
 
             if (NativeMethods.IsIconic(handle)) NativeMethods.ShowWindowAsync(handle, NativeMethods.SwRestore);
             NativeMethods.ShowWindowAsync(handle, NativeMethods.SwShow);
@@ -2960,8 +3035,8 @@ namespace Orla
             IntPtr currentForeground = NativeMethods.GetForegroundWindow();
             uint foregroundProcessId;
             uint foregroundThread = NativeMethods.GetWindowThreadProcessId(currentForeground, out foregroundProcessId);
-            uint targetProcessId;
-            uint targetThread = NativeMethods.GetWindowThreadProcessId(handle, out targetProcessId);
+            uint resolvedTargetProcessId;
+            uint targetThread = NativeMethods.GetWindowThreadProcessId(handle, out resolvedTargetProcessId);
             uint currentThread = NativeMethods.GetCurrentThreadId();
             bool attachedForeground = foregroundThread != 0 && foregroundThread != currentThread
                 && NativeMethods.AttachThreadInput(currentThread, foregroundThread, true);
@@ -2969,15 +3044,64 @@ namespace Orla
                 && NativeMethods.AttachThreadInput(currentThread, targetThread, true);
             try
             {
+                NativeMethods.SetWindowPos(handle, NativeMethods.HwndTop, 0, 0, 0, 0,
+                    NativeMethods.SwpNoMove | NativeMethods.SwpNoSize
+                    | NativeMethods.SwpShowWindow | NativeMethods.SwpAsyncWindowPos);
                 NativeMethods.BringWindowToTop(handle);
                 NativeMethods.SetForegroundWindow(handle);
+                NativeMethods.SetFocus(handle);
             }
             finally
             {
                 if (attachedTarget) NativeMethods.AttachThreadInput(currentThread, targetThread, false);
                 if (attachedForeground) NativeMethods.AttachThreadInput(currentThread, foregroundThread, false);
             }
-            return NativeMethods.GetForegroundWindow() == handle;
+            // Teams, navegadores e apps WebView podem promover outro HWND do
+            // mesmo processo. O êxito é o app em primeiro plano, não a
+            // identidade exata da janela que recebeu o pedido inicial.
+            return IsProcessForeground(targetProcessId);
+        }
+
+        private static bool IsProcessForeground(uint processId)
+        {
+            IntPtr foreground = NativeMethods.GetForegroundWindow();
+            uint foregroundProcessId;
+            NativeMethods.GetWindowThreadProcessId(foreground, out foregroundProcessId);
+            return foregroundProcessId != 0 && foregroundProcessId == processId;
+        }
+
+        private static bool CanContinueActivation(IntPtr originalForeground, uint targetProcessId)
+        {
+            IntPtr current = NativeMethods.GetForegroundWindow();
+            if (current == IntPtr.Zero || current == originalForeground) return true;
+
+            uint currentProcessId;
+            NativeMethods.GetWindowThreadProcessId(current, out currentProcessId);
+            return currentProcessId == targetProcessId
+                || currentProcessId == (uint)Process.GetCurrentProcess().Id;
+        }
+
+        private static IntPtr ResolveActivationTarget(uint processId, IntPtr preferred)
+        {
+            uint preferredProcessId;
+            NativeMethods.GetWindowThreadProcessId(preferred, out preferredProcessId);
+            if (preferred != IntPtr.Zero && preferredProcessId == processId
+                && NativeMethods.IsWindow(preferred) && NativeMethods.IsWindowVisible(preferred))
+                return preferred;
+
+            IntPtr found = IntPtr.Zero;
+            NativeMethods.EnumWindows(delegate(IntPtr candidate, IntPtr parameter)
+            {
+                if (!NativeMethods.IsWindowVisible(candidate)) return true;
+                if (NativeMethods.GetWindow(candidate, NativeMethods.GwOwner) != IntPtr.Zero) return true;
+                if ((NativeMethods.GetWindowLong(candidate, NativeMethods.GwlExStyle) & NativeMethods.WsExToolWindow) != 0) return true;
+                uint candidateProcessId;
+                NativeMethods.GetWindowThreadProcessId(candidate, out candidateProcessId);
+                if (candidateProcessId != processId) return true;
+                found = candidate;
+                return false;
+            }, IntPtr.Zero);
+            return found;
         }
 
         internal static void CloseWindow(IntPtr handle)
@@ -3241,8 +3365,11 @@ namespace Orla
         internal const int AbnPosChanged = 0x00000001;
         internal const uint SwpNoActivate = 0x0010;
         internal const uint SwpNoSize = 0x0001;
+        internal const uint SwpNoMove = 0x0002;
         internal const uint SwpNoZOrder = 0x0004;
         internal const uint SwpShowWindow = 0x0040;
+        internal const uint SwpAsyncWindowPos = 0x4000;
+        internal static readonly IntPtr HwndTop = IntPtr.Zero;
         internal static readonly IntPtr HwndTopmost = new IntPtr(-1);
         internal const int SwHide = 0;
         internal const int SwShow = 5;
