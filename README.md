@@ -35,7 +35,7 @@ O projeto nasceu de uma meta simples: manter a fluidez visual de um dock moderno
 - botões do Fluent Search em cada tela sempre abrem a busca naquela tela;
 - `Win+Shift+S`, `Win+E`, `Win+D` e outras combinações continuam no Windows;
 - indicadores oficiais Microsoft Fluent UI de Wi-Fi, volume e bateria, sincronizados nas duas telas e reunidos em uma única área interativa;
-- chevron da topbar abre e fecha os ícones ocultos nativos, acompanha o estado com animação e remove o destaque indevido do primeiro item;
+- chevron da topbar abre e fecha os ícones ocultos nativos, acompanha o estado com animação e só revela o flyout depois de posicionado no topo;
 - hover dos controles mantém ícones e textos imóveis e realça apenas a superfície arredondada ao fundo;
 - intensidade do Wi-Fi e nome do perfil conectado por API nativa, com fallback automático para somente o sinal quando a privacidade ou política do Windows restringe o nome;
 - painel rápido em português, inglês ou espanhol conforme o idioma de exibição do Windows;

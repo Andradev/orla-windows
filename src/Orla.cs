@@ -28,8 +28,8 @@ using WpfEllipse = System.Windows.Shapes.Ellipse;
 [assembly: AssemblyCompany("Orla contributors")]
 [assembly: AssemblyProduct("Orla")]
 [assembly: AssemblyCopyright("MIT License")]
-[assembly: AssemblyVersion("1.2.6.0")]
-[assembly: AssemblyFileVersion("1.2.6.0")]
+[assembly: AssemblyVersion("1.2.7.0")]
+[assembly: AssemblyFileVersion("1.2.7.0")]
 
 namespace Orla
 {
@@ -2438,6 +2438,122 @@ namespace Orla
         private static int _trayOverflowLastClosedTick;
         internal static event Action<bool> TrayOverflowStateChanged;
 
+        // EVENT_OBJECT_CREATE/SHOW chega antes do polling enxergar o flyout.
+        // Mantemos este hook somente durante a abertura para esconder a janela
+        // da composição e posicioná-la antes do primeiro quadro visível.
+        private sealed class TrayOverflowPrepositioner : IDisposable
+        {
+            private readonly DrawingRectangle _targetBounds;
+            private readonly int _topBarHeight;
+            private readonly NativeMethods.WinEventProc _callback;
+            private readonly ManualResetEventSlim _captured;
+            private readonly ManualResetEventSlim _ready;
+            private readonly Thread _thread;
+            private IntPtr _hook;
+            private IntPtr _popup;
+            private uint _threadId;
+            private int _armed;
+
+            internal TrayOverflowPrepositioner(DrawingRectangle targetBounds, int topBarHeight)
+            {
+                _targetBounds = targetBounds;
+                _topBarHeight = topBarHeight;
+                _captured = new ManualResetEventSlim(false);
+                _ready = new ManualResetEventSlim(false);
+                _callback = OnWinEvent;
+                _armed = 1;
+                _thread = new Thread(HookThreadMain);
+                _thread.IsBackground = true;
+                _thread.Name = "Orla.TrayOverflowPrepositioner";
+                _thread.Priority = ThreadPriority.Highest;
+                _thread.Start();
+            }
+
+            internal void WaitUntilReady(int timeoutMilliseconds)
+            {
+                _ready.Wait(timeoutMilliseconds);
+            }
+
+            internal IntPtr WaitForPopup(int timeoutMilliseconds)
+            {
+                if (Volatile.Read(ref _armed) == 0) return IntPtr.Zero;
+                _captured.Wait(timeoutMilliseconds);
+                return Interlocked.CompareExchange(ref _popup, IntPtr.Zero, IntPtr.Zero);
+            }
+
+            internal void Disarm()
+            {
+                Interlocked.Exchange(ref _armed, 0);
+            }
+
+            private void OnWinEvent(IntPtr hook, uint eventType, IntPtr window,
+                int objectId, int childId, uint eventThread, uint eventTime)
+            {
+                if ((eventType != NativeMethods.EventObjectCreate
+                    && eventType != NativeMethods.EventObjectShow
+                    && eventType != NativeMethods.EventObjectLocationChange)
+                    || Volatile.Read(ref _armed) == 0 || objectId != NativeMethods.ObjidWindow
+                    || !IsTrayOverflowWindow(window)) return;
+
+                int width;
+                int height;
+                if (!TryPrepareTrayOverflow(window, _targetBounds, _topBarHeight,
+                    out width, out height)) return;
+                Interlocked.Exchange(ref _popup, window);
+                _captured.Set();
+            }
+
+            private void HookThreadMain()
+            {
+                try
+                {
+                    _threadId = NativeMethods.GetCurrentThreadId();
+                    NativeMethods.NativeMessage unused;
+                    NativeMethods.PeekMessage(out unused, IntPtr.Zero, 0, 0, NativeMethods.PmNoRemove);
+                    _hook = NativeMethods.SetWinEventHook(
+                        NativeMethods.EventObjectCreate,
+                        NativeMethods.EventObjectLocationChange,
+                        IntPtr.Zero,
+                        _callback,
+                        0,
+                        0,
+                        NativeMethods.WinEventOutOfContext);
+                    _ready.Set();
+                    if (_hook == IntPtr.Zero) return;
+
+                    NativeMethods.NativeMessage message;
+                    while (NativeMethods.GetMessage(out message, IntPtr.Zero, 0, 0) > 0)
+                    {
+                        NativeMethods.TranslateMessage(ref message);
+                        NativeMethods.DispatchMessage(ref message);
+                    }
+                }
+                catch (Exception exception)
+                {
+                    Logger.Write("Falha ao preparar eventos da bandeja: " + exception.Message);
+                }
+                finally
+                {
+                    if (!_ready.IsSet) _ready.Set();
+                    IntPtr hook = Interlocked.Exchange(ref _hook, IntPtr.Zero);
+                    if (hook != IntPtr.Zero) NativeMethods.UnhookWinEvent(hook);
+                    GC.KeepAlive(_callback);
+                }
+            }
+
+            public void Dispose()
+            {
+                Disarm();
+                uint threadId = _threadId;
+                if (threadId != 0)
+                    NativeMethods.PostThreadMessage(threadId, NativeMethods.WmQuit,
+                        IntPtr.Zero, IntPtr.Zero);
+                if (_thread.IsAlive && Thread.CurrentThread != _thread) _thread.Join(350);
+                _captured.Dispose();
+                _ready.Dispose();
+            }
+        }
+
         internal static void Start(string path)
         {
             if (string.IsNullOrWhiteSpace(path)) return;
@@ -2482,10 +2598,19 @@ namespace Orla
             if (sinceClosed >= 0 && sinceClosed < 350) return;
             if (Interlocked.CompareExchange(ref _trayOverflowOperation, 1, 0) != 0) return;
             Volatile.Write(ref _trayOverflowCloseRequested, 0);
+
+            Forms.Screen targetScreen = Forms.Screen.AllScreens.FirstOrDefault(delegate(Forms.Screen item)
+            {
+                return string.Equals(item.DeviceName, screenDeviceName, StringComparison.OrdinalIgnoreCase);
+            }) ?? Forms.Screen.PrimaryScreen;
+            DrawingRectangle targetBounds = targetScreen.Bounds;
+            TrayOverflowPrepositioner prepositioner = new TrayOverflowPrepositioner(
+                targetBounds, topBarHeight);
             ThreadPool.QueueUserWorkItem(delegate
             {
                 try
                 {
+                    prepositioner.WaitUntilReady(300);
                     IntPtr existing = FindTrayOverflow();
                     if (existing != IntPtr.Zero && NativeMethods.IsWindowVisible(existing))
                     {
@@ -2495,21 +2620,12 @@ namespace Orla
                         return;
                     }
 
-                    Forms.Screen targetScreen = Forms.Screen.AllScreens.FirstOrDefault(delegate(Forms.Screen item)
+                    if (existing != IntPtr.Zero)
                     {
-                        return string.Equals(item.DeviceName, screenDeviceName, StringComparison.OrdinalIgnoreCase);
-                    }) ?? Forms.Screen.PrimaryScreen;
-                    DrawingRectangle targetBounds = targetScreen.Bounds;
-                    NativeMethods.Rect dormantRectangle;
-                    if (existing != IntPtr.Zero && NativeMethods.GetWindowRect(existing, out dormantRectangle))
-                    {
-                        int dormantWidth = dormantRectangle.right - dormantRectangle.left;
-                        int dormantHeight = dormantRectangle.bottom - dormantRectangle.top;
-                        if (dormantWidth > 0 && dormantHeight > 0)
-                            NativeMethods.SetWindowPos(existing, NativeMethods.HwndTopmost,
-                                targetBounds.Right - dormantWidth - 8,
-                                targetBounds.Top + topBarHeight + 6,
-                                dormantWidth, dormantHeight, NativeMethods.SwpNoActivate);
+                        int dormantWidth;
+                        int dormantHeight;
+                        TryPrepareTrayOverflow(existing, targetBounds, topBarHeight,
+                            out dormantWidth, out dormantHeight);
                     }
 
                     NativeMethods.Input[] openTray =
@@ -2530,38 +2646,29 @@ namespace Orla
                     NativeMethods.SendInput((uint)confirm.Length, confirm,
                         Marshal.SizeOf(typeof(NativeMethods.Input)));
 
-                    IntPtr popup = IntPtr.Zero;
-                    for (int attempt = 0; attempt < 120 && popup == IntPtr.Zero; attempt++)
+                    IntPtr popup = prepositioner.WaitForPopup(180);
+                    for (int attempt = 0; attempt < 180 && popup == IntPtr.Zero; attempt++)
                     {
-                        Thread.Sleep(5);
+                        Thread.Sleep(2);
                         IntPtr candidate = FindTrayOverflow();
-                        if (candidate == IntPtr.Zero || !NativeMethods.IsWindowVisible(candidate)) continue;
+                        if (candidate == IntPtr.Zero) continue;
                         if (Volatile.Read(ref _trayOverflowCloseRequested) != 0)
                         {
                             CloseTrayOverflowWindow(candidate);
                             return;
                         }
-                        popup = candidate;
+                        int candidateWidth;
+                        int candidateHeight;
+                        if (TryPrepareTrayOverflow(candidate, targetBounds, topBarHeight,
+                            out candidateWidth, out candidateHeight)) popup = candidate;
                     }
                     if (popup == IntPtr.Zero) return;
+                    prepositioner.Disarm();
 
-                    // O Shell cria o flyout na posição padrão da taskbar.
-                    // Oculte-o assim que o HWND se tornar visível, mova ainda
-                    // oculto e só então revele-o junto à topbar.
-                    NativeMethods.ShowWindowAsync(popup, NativeMethods.SwHide);
-                    NativeMethods.Rect rectangle;
                     int width = 0;
                     int height = 0;
-                    if (NativeMethods.GetWindowRect(popup, out rectangle))
-                    {
-                        width = rectangle.right - rectangle.left;
-                        height = rectangle.bottom - rectangle.top;
-                        if (width > 0 && height > 0)
-                            NativeMethods.SetWindowPos(popup, NativeMethods.HwndTopmost,
-                                targetBounds.Right - width - 8,
-                                targetBounds.Top + topBarHeight + 6,
-                                width, height, NativeMethods.SwpNoActivate);
-                    }
+                    if (!TryPrepareTrayOverflow(popup, targetBounds, topBarHeight,
+                        out width, out height)) return;
 
                     // A abertura por teclado é a única API estável oferecida
                     // pelo shell. Ocultamos o indicador de foco do primeiro
@@ -2569,15 +2676,6 @@ namespace Orla
                     // mouse, sem parecer que um aplicativo foi selecionado.
                     NativeMethods.SendMessage(popup, NativeMethods.WmChangeUiState,
                         new IntPtr(NativeMethods.UisSet | (NativeMethods.UisfHideFocus << 16)), IntPtr.Zero);
-                    NativeMethods.ShowWindowAsync(popup, NativeMethods.SwShow);
-
-                    uint popupProcessId;
-                    uint popupThread = NativeMethods.GetWindowThreadProcessId(popup, out popupProcessId);
-                    uint currentThread = NativeMethods.GetCurrentThreadId();
-                    bool attached = popupThread != 0 && popupThread != currentThread
-                        && NativeMethods.AttachThreadInput(currentThread, popupThread, true);
-                    try { NativeMethods.SetFocus(popup); }
-                    finally { if (attached) NativeMethods.AttachThreadInput(currentThread, popupThread, false); }
 
                     if (width > 0 && height > 0)
                     {
@@ -2600,6 +2698,26 @@ namespace Orla
                         return;
                     }
 
+                    // A janela permanece cloaked enquanto recebe posição,
+                    // estado visual e tamanho. SWP_SHOWWINDOW torna o HWND
+                    // logicamente visível já no topo; só depois retiramos o
+                    // cloak do DWM para não existir um quadro na parte baixa.
+                    NativeMethods.SetWindowPos(popup, NativeMethods.HwndTopmost,
+                        targetBounds.Right - width - 8,
+                        targetBounds.Top + topBarHeight + 6,
+                        width, height,
+                        NativeMethods.SwpNoActivate | NativeMethods.SwpShowWindow);
+                    SetTrayOverflowRegionHidden(popup, false);
+                    SetTrayOverflowCloaked(popup, false);
+
+                    uint popupProcessId;
+                    uint popupThread = NativeMethods.GetWindowThreadProcessId(popup, out popupProcessId);
+                    uint currentThread = NativeMethods.GetCurrentThreadId();
+                    bool attached = popupThread != 0 && popupThread != currentThread
+                        && NativeMethods.AttachThreadInput(currentThread, popupThread, true);
+                    try { NativeMethods.SetFocus(popup); }
+                    finally { if (attached) NativeMethods.AttachThreadInput(currentThread, popupThread, false); }
+
                     RaiseTrayOverflowState(true);
                     while (NativeMethods.IsWindowVisible(popup))
                     {
@@ -2620,6 +2738,7 @@ namespace Orla
                 }
                 finally
                 {
+                    prepositioner.Dispose();
                     RaiseTrayOverflowState(false);
                     Volatile.Write(ref _trayOverflowCloseRequested, 0);
                     Interlocked.Exchange(ref _trayOverflowOperation, 0);
@@ -2628,9 +2747,71 @@ namespace Orla
             });
         }
 
+        private static bool TryPrepareTrayOverflow(IntPtr popup, DrawingRectangle targetBounds,
+            int topBarHeight, out int width, out int height)
+        {
+            width = 0;
+            height = 0;
+            if (!IsTrayOverflowWindow(popup)) return false;
+
+            NativeMethods.Rect rectangle;
+            if (!NativeMethods.GetWindowRect(popup, out rectangle)) return false;
+            width = rectangle.right - rectangle.left;
+            height = rectangle.bottom - rectangle.top;
+            if (width <= 0 || height <= 0) return false;
+
+            // O Shell pode retirar seu próprio cloak durante a animação. Além
+            // do bloqueio do DWM, aplicamos uma região de desenho vazia antes
+            // da abertura e escondemos o HWND de forma síncrona no evento SHOW.
+            // A região permanece vazia mesmo quando o Shell remove o cloak.
+            SetTrayOverflowRegionHidden(popup, true);
+            SetTrayOverflowCloaked(popup, true);
+            NativeMethods.ShowWindow(popup, NativeMethods.SwHide);
+            NativeMethods.SetWindowPos(popup, NativeMethods.HwndTopmost,
+                targetBounds.Right - width - 8,
+                targetBounds.Top + topBarHeight + 6,
+                width, height, NativeMethods.SwpNoActivate);
+            return true;
+        }
+
+        private static bool SetTrayOverflowCloaked(IntPtr popup, bool cloaked)
+        {
+            if (popup == IntPtr.Zero || !NativeMethods.IsWindow(popup)) return false;
+            try
+            {
+                int value = cloaked ? 1 : 0;
+                return NativeMethods.DwmSetWindowAttribute(popup, NativeMethods.DwmwaCloak,
+                    ref value, Marshal.SizeOf(typeof(int))) >= 0;
+            }
+            catch { return false; }
+        }
+
+        private static bool SetTrayOverflowRegionHidden(IntPtr popup, bool hidden)
+        {
+            if (popup == IntPtr.Zero || !NativeMethods.IsWindow(popup)) return false;
+            if (!hidden) return NativeMethods.SetWindowRgn(popup, IntPtr.Zero, true) != 0;
+
+            IntPtr emptyRegion = NativeMethods.CreateRectRgn(0, 0, 0, 0);
+            if (emptyRegion == IntPtr.Zero) return false;
+            if (NativeMethods.SetWindowRgn(popup, emptyRegion, true) != 0) return true;
+            NativeMethods.DeleteObject(emptyRegion);
+            return false;
+        }
+
+        private static bool IsTrayOverflowWindow(IntPtr popup)
+        {
+            if (popup == IntPtr.Zero || !NativeMethods.IsWindow(popup)) return false;
+            StringBuilder className = new StringBuilder(64);
+            if (NativeMethods.GetClassName(popup, className, className.Capacity) <= 0) return false;
+            return string.Equals(className.ToString(),
+                "TopLevelWindowForOverflowXamlIsland", StringComparison.Ordinal);
+        }
+
         private static void CloseTrayOverflowWindow(IntPtr popup)
         {
             if (popup == IntPtr.Zero || !NativeMethods.IsWindow(popup)) return;
+            SetTrayOverflowRegionHidden(popup, false);
+            SetTrayOverflowCloaked(popup, false);
             NativeMethods.PostMessage(popup, NativeMethods.WmClose, IntPtr.Zero, IntPtr.Zero);
             NativeMethods.Input[] escape =
             {
@@ -3077,6 +3258,7 @@ namespace Orla
         internal const int WmSysKeyDown = 0x0104;
         internal const int WmSysKeyUp = 0x0105;
         internal const int WmClose = 0x0010;
+        internal const uint WmQuit = 0x0012;
         internal const int WmChangeUiState = 0x0127;
         internal const int WmLButtonDown = 0x0201;
         internal const int WmLButtonUp = 0x0202;
@@ -3091,7 +3273,13 @@ namespace Orla
         internal const uint InputKeyboard = 1;
         internal const uint KeyeventfKeyup = 0x0002;
         internal const uint EventSystemForeground = 0x0003;
+        internal const uint EventObjectCreate = 0x8000;
+        internal const uint EventObjectShow = 0x8002;
+        internal const uint EventObjectLocationChange = 0x800B;
+        internal const int ObjidWindow = 0;
         internal const uint WinEventOutOfContext = 0x0000;
+        internal const int DwmwaCloak = 13;
+        internal const uint PmNoRemove = 0x0000;
         internal const uint MonitorDefaultToNearest = 0x00000002;
         internal const uint ShgsiIcon = 0x00000100;
         internal const int SiidRecycler = 31;
@@ -3111,6 +3299,18 @@ namespace Orla
         {
             internal int X;
             internal int Y;
+        }
+
+        [StructLayout(LayoutKind.Sequential)]
+        internal struct NativeMessage
+        {
+            internal IntPtr Window;
+            internal uint Message;
+            internal IntPtr WParam;
+            internal IntPtr LParam;
+            internal uint Time;
+            internal ScreenPoint Point;
+            internal uint Private;
         }
 
         [StructLayout(LayoutKind.Sequential)]
@@ -3227,6 +3427,15 @@ namespace Orla
         [DllImport("user32.dll")]
         internal static extern bool DestroyIcon(IntPtr icon);
 
+        [DllImport("gdi32.dll")]
+        internal static extern IntPtr CreateRectRgn(int left, int top, int right, int bottom);
+
+        [DllImport("gdi32.dll")]
+        internal static extern bool DeleteObject(IntPtr objectHandle);
+
+        [DllImport("user32.dll")]
+        internal static extern int SetWindowRgn(IntPtr handle, IntPtr region, bool redraw);
+
         [DllImport("user32.dll")]
         internal static extern IntPtr MonitorFromPoint(ScreenPoint point, uint flags);
 
@@ -3330,6 +3539,28 @@ namespace Orla
 
         [DllImport("user32.dll")]
         internal static extern bool UnhookWinEvent(IntPtr hook);
+
+        [DllImport("dwmapi.dll")]
+        internal static extern int DwmSetWindowAttribute(IntPtr handle, int attribute,
+            ref int attributeValue, int attributeSize);
+
+        [DllImport("user32.dll")]
+        internal static extern bool PeekMessage(out NativeMessage message, IntPtr window,
+            uint filterMinimum, uint filterMaximum, uint removeMessage);
+
+        [DllImport("user32.dll")]
+        internal static extern int GetMessage(out NativeMessage message, IntPtr window,
+            uint filterMinimum, uint filterMaximum);
+
+        [DllImport("user32.dll")]
+        internal static extern bool TranslateMessage(ref NativeMessage message);
+
+        [DllImport("user32.dll")]
+        internal static extern IntPtr DispatchMessage(ref NativeMessage message);
+
+        [DllImport("user32.dll", SetLastError = true)]
+        internal static extern bool PostThreadMessage(uint threadId, uint message,
+            IntPtr wParam, IntPtr lParam);
 
         [DllImport("user32.dll")]
         internal static extern IntPtr CallNextHookEx(IntPtr hook, int code, IntPtr wParam, IntPtr lParam);
