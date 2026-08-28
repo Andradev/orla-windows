@@ -82,12 +82,12 @@ namespace Orla
 
         internal static string QuickPanelTitle { get { return T("Controles rápidos da Orla", "Orla quick controls", "Controles rápidos de Orla"); } }
         internal static string Controls { get { return T("Controles", "Controls", "Controles"); } }
-        internal static string EssentialActions { get { return T("Ações essenciais sem sair da Orla", "Essential actions without leaving Orla", "Acciones esenciales sin salir de Orla"); } }
         internal static string Close { get { return T("Fechar", "Close", "Cerrar"); } }
         internal static string CloseControls { get { return T("Fechar controles", "Close controls", "Cerrar controles"); } }
         internal static string Volume { get { return T("Volume", "Volume", "Volumen"); } }
         internal static string Brightness { get { return T("Brilho", "Brightness", "Brillo"); } }
         internal static string EnergySaver { get { return T("Economia de energia", "Energy saver", "Ahorro de energía"); } }
+        internal static string EnergySaverShort { get { return T("Economia", "Energy saver", "Ahorro"); } }
         internal static string NightLight { get { return T("Luz noturna", "Night light", "Luz nocturna"); } }
         internal static string OpenEnergySaverSettings { get { return T("Abrir configurações de economia de energia", "Open energy saver settings", "Abrir configuración de ahorro de energía"); } }
         internal static string OpenNightLightSettings { get { return T("Abrir configurações de luz noturna", "Open night light settings", "Abrir configuración de luz nocturna"); } }
@@ -113,10 +113,7 @@ namespace Orla
             return ddc.ToString(FormattingCulture) + " DDC/CI monitor" + (ddc == 1 ? "" : "s") + " detected";
         }
         internal static string MasterVolume { get { return T("Volume principal", "Master volume", "Volumen principal"); } }
-        internal static string Mute { get { return T("Silenciar", "Mute", "Silenciar"); } }
         internal static string ToggleMute { get { return T("Alternar mute", "Toggle mute", "Alternar silencio"); } }
-        internal static string Unmute { get { return T("Ativar som", "Unmute", "Activar sonido"); } }
-        internal static string Muted { get { return T("Mudo", "Muted", "Silenciado"); } }
         internal static string OpenWindowsSettings { get { return T("Abrir configurações do Windows", "Open Windows settings", "Abrir configuración de Windows"); } }
         internal static string OpenNetworkSettings { get { return T("Abrir configurações de rede", "Open network settings", "Abrir configuración de red"); } }
         internal static string OpenBluetoothSettings { get { return T("Abrir configurações de Bluetooth", "Open Bluetooth settings", "Abrir configuración de Bluetooth"); } }
@@ -138,6 +135,8 @@ namespace Orla
         internal static string NetworkStatus { get { return T("Estado da rede", "Network status", "Estado de la red"); } }
         internal static string TemporarilyUnavailable { get { return T("Informação temporariamente indisponível", "Information temporarily unavailable", "Información temporalmente no disponible"); } }
         internal static string Unavailable { get { return T("Indisponível", "Unavailable", "No disponible"); } }
+        internal static string Enabled { get { return T("Ativado", "On", "Activado"); } }
+        internal static string Connected { get { return T("Conectado", "Connected", "Conectado"); } }
 
         internal static string ExternalPower { get { return T("Alimentação externa", "External power", "Alimentación externa"); } }
         internal static string NoBatteryReported { get { return T("Este computador não informa uma bateria", "This computer does not report a battery", "Este equipo no informa una batería"); } }

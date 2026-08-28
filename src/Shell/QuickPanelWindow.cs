@@ -29,16 +29,16 @@ namespace Orla
         private readonly TextBlock _bluetoothTitle;
         private readonly TextBlock _bluetoothDetail;
         private readonly VectorIcon _bluetoothGlyph;
+        private readonly Button _volumeButton;
         private readonly LightweightSlider _volumeSlider;
-        private readonly TextBlock _volumePercent;
         private readonly VectorIcon _volumeGlyph;
-        private readonly TextBlock _muteText;
-        private readonly Button _muteButton;
         private readonly LightweightSlider _brightnessSlider;
-        private readonly TextBlock _brightnessDetail;
-        private readonly TextBlock _batteryTitle;
-        private readonly TextBlock _batteryDetail;
-        private readonly VectorIcon _batteryGlyph;
+        private readonly Border _energySaverSurface;
+        private readonly TextBlock _energySaverDetail;
+        private readonly VectorIcon _energySaverGlyph;
+        private readonly Border _nightLightSurface;
+        private readonly TextBlock _nightLightDetail;
+        private readonly VectorIcon _nightLightGlyph;
         private bool _updatingVolume;
         private bool _updatingBrightness;
         private bool _audioAvailable;
@@ -58,7 +58,9 @@ namespace Orla
             _screenDeviceName = screenDeviceName;
             _statusMonitor = statusMonitor;
             Title = Loc.QuickPanelTitle;
-            Width = 344;
+            // 316 px de conteúdo + 28 px de padding + 2 px de borda.
+            // A largura anterior de 344 px recortava a borda direita em DPI fracionário.
+            Width = 346;
             SizeToContent = SizeToContent.Height;
             MaxHeight = 620;
             WindowStyle = WindowStyle.None;
@@ -86,12 +88,8 @@ namespace Orla
             Grid header = new Grid { Margin = new Thickness(2, 0, 0, 10) };
             header.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
             header.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-            StackPanel heading = new StackPanel();
-            heading.Children.Add(Ui.Text(Loc.Controls, 16, FontWeights.SemiBold));
-            TextBlock subtitle = Ui.Text(Loc.EssentialActions, 10.5, FontWeights.Normal);
-            subtitle.Foreground = Ui.SecondaryTextBrush;
-            subtitle.Margin = new Thickness(0, 2, 0, 0);
-            heading.Children.Add(subtitle);
+            TextBlock heading = Ui.Text(Loc.Controls, 16, FontWeights.SemiBold);
+            heading.VerticalAlignment = VerticalAlignment.Center;
             header.Children.Add(heading);
             Button close = Ui.WrapButton(Ui.Vector(OrlaIcon.Close, Loc.Close, 15), Loc.CloseControls, 30, 30);
             Ui.EnableTopBarMotion(close);
@@ -100,9 +98,17 @@ namespace Orla
             header.Children.Add(close);
             content.Children.Add(header);
 
-            Grid networkRow = CreateStatusRow(OrlaIcon.WifiMedium, 20,
-                out _networkGlyph, out _networkTitle, out _networkDetail, false, null, null);
-            _networkSurface = CreateSplitToggleCard(networkRow, Loc.ToggleWifi, delegate
+            Grid quickActions = new Grid();
+            quickActions.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(154) });
+            quickActions.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(8) });
+            quickActions.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(154) });
+            quickActions.RowDefinitions.Add(new RowDefinition { Height = new GridLength(58) });
+            quickActions.RowDefinitions.Add(new RowDefinition { Height = new GridLength(8) });
+            quickActions.RowDefinitions.Add(new RowDefinition { Height = new GridLength(58) });
+
+            Grid networkRow = CreateCompactStatusContent(OrlaIcon.WifiMedium, 20,
+                out _networkGlyph, out _networkTitle, out _networkDetail);
+            _networkSurface = CreateCompactSplitToggleCard(networkRow, Loc.ToggleWifi, delegate
                 {
                     ToggleRadio(RadioKind.Wifi, _networkToggleButton);
                 }, Loc.OpenNetworkSettings, delegate
@@ -110,11 +116,11 @@ namespace Orla
                     ShellActions.OpenUri("ms-settings:network-wifi");
                     RequestClose(false);
                 }, out _networkToggleButton);
-            content.Children.Add(_networkSurface);
+            quickActions.Children.Add(_networkSurface);
 
-            Grid bluetoothRow = CreateStatusRow(OrlaIcon.Bluetooth, 18,
-                out _bluetoothGlyph, out _bluetoothTitle, out _bluetoothDetail, false, null, null);
-            _bluetoothSurface = CreateSplitToggleCard(bluetoothRow, Loc.ToggleBluetooth, delegate
+            Grid bluetoothRow = CreateCompactStatusContent(OrlaIcon.Bluetooth, 18,
+                out _bluetoothGlyph, out _bluetoothTitle, out _bluetoothDetail);
+            _bluetoothSurface = CreateCompactSplitToggleCard(bluetoothRow, Loc.ToggleBluetooth, delegate
                 {
                     ToggleRadio(RadioKind.Bluetooth, _bluetoothToggleButton);
                 }, Loc.OpenBluetoothSettings, delegate
@@ -122,18 +128,44 @@ namespace Orla
                     ShellActions.OpenUri("ms-settings:bluetooth");
                     RequestClose(false);
                 }, out _bluetoothToggleButton);
-            _bluetoothSurface.Margin = new Thickness(0, 9, 0, 0);
-            content.Children.Add(_bluetoothSurface);
+            Grid.SetColumn(_bluetoothSurface, 2);
+            quickActions.Children.Add(_bluetoothSurface);
+
+            _energySaverSurface = CreateCompactSettingsTile(OrlaIcon.EnergySaver,
+                Loc.EnergySaverShort, Loc.OpenEnergySaverSettings, delegate
+                {
+                    ShellActions.OpenUri("ms-settings:batterysaver-settings");
+                    RequestClose(false);
+                }, out _energySaverGlyph, out _energySaverDetail);
+            Grid.SetRow(_energySaverSurface, 2);
+            quickActions.Children.Add(_energySaverSurface);
+
+            _nightLightSurface = CreateCompactSettingsTile(OrlaIcon.NightLight, Loc.NightLight,
+                Loc.OpenNightLightSettings, delegate
+                {
+                    ShellActions.OpenUri("ms-settings:nightlight");
+                    RequestClose(false);
+                }, out _nightLightGlyph, out _nightLightDetail);
+            Grid.SetColumn(_nightLightSurface, 2);
+            Grid.SetRow(_nightLightSurface, 2);
+            quickActions.Children.Add(_nightLightSurface);
+            content.Children.Add(quickActions);
 
             Border audioCard = CreateCard();
+            audioCard.Width = 316;
+            audioCard.Height = 48;
             audioCard.Margin = new Thickness(0, 9, 0, 0);
-            StackPanel audioContent = new StackPanel();
-            TextBlock audioTitle;
-            Grid audioHeader = CreateStatusRow(OrlaIcon.VolumeHigh, 18,
-                out _volumeGlyph, out audioTitle, out _volumePercent,
-                false, Loc.ToggleMute, delegate { _statusMonitor.ToggleMute(); });
-            audioTitle.Text = Loc.Volume;
-            audioContent.Children.Add(audioHeader);
+            audioCard.Padding = new Thickness(10, 5, 10, 5);
+            Grid audioContent = new Grid();
+            audioContent.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(38) });
+            audioContent.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            _volumeGlyph = Ui.Vector(OrlaIcon.VolumeHigh, Loc.ToggleMute, 18);
+            _volumeButton = Ui.WrapButton(_volumeGlyph, Loc.ToggleMute, 30, 30);
+            _volumeButton.Background = new SolidColorBrush(Color.FromArgb(18, 255, 255, 255));
+            _volumeButton.VerticalAlignment = VerticalAlignment.Center;
+            _volumeButton.Click += delegate { _statusMonitor.ToggleMute(); };
+            Ui.EnableTopBarMotion(_volumeButton);
+            audioContent.Children.Add(_volumeButton);
 
             _volumeSlider = new LightweightSlider
             {
@@ -143,39 +175,35 @@ namespace Orla
                 IsSnapToTickEnabled = true,
                 IsMoveToPointEnabled = true,
                 Height = 26,
-                Margin = new Thickness(2, 10, 2, 5),
+                Margin = new Thickness(2, 0, 2, 0),
+                VerticalAlignment = VerticalAlignment.Center,
                 ToolTip = Loc.MasterVolume
             };
             System.Windows.Automation.AutomationProperties.SetName(_volumeSlider, Loc.MasterVolume);
             _volumeSlider.ValueChanged += OnVolumeChanged;
+            Grid.SetColumn(_volumeSlider, 1);
             audioContent.Children.Add(_volumeSlider);
-
-            StackPanel audioActions = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right };
-            _muteText = Ui.Text(Loc.Mute, 11, FontWeights.SemiBold);
-            StackPanel muteContent = new StackPanel { Orientation = Orientation.Horizontal };
-            VectorIcon muteGlyph = Ui.Vector(OrlaIcon.VolumeMuted, Loc.ToggleMute, 14);
-            muteGlyph.Margin = new Thickness(0, 0, 6, 0);
-            muteContent.Children.Add(muteGlyph);
-            muteContent.Children.Add(_muteText);
-            _muteButton = Ui.WrapButton(muteContent, Loc.ToggleMute, 104, 30);
-            Ui.EnableTopBarMotion(_muteButton);
-            _muteButton.Click += delegate { _statusMonitor.ToggleMute(); };
-            audioActions.Children.Add(_muteButton);
-            audioContent.Children.Add(audioActions);
             audioCard.Child = audioContent;
             content.Children.Add(audioCard);
 
             Border brightnessCard = CreateCard();
-            brightnessCard.Margin = new Thickness(0, 9, 0, 0);
-            StackPanel brightnessContent = new StackPanel();
-            VectorIcon brightnessGlyph;
-            TextBlock brightnessTitle;
-            Grid brightnessHeader = CreateStatusRow(OrlaIcon.BrightnessHigh, 20,
-                out brightnessGlyph, out brightnessTitle, out _brightnessDetail,
-                false, null, null);
-            brightnessTitle.Text = Loc.Brightness;
-            _brightnessDetail.Text = Loc.CheckingMonitorSupport;
-            brightnessContent.Children.Add(brightnessHeader);
+            brightnessCard.Width = 316;
+            brightnessCard.Height = 48;
+            brightnessCard.Margin = new Thickness(0, 8, 0, 0);
+            brightnessCard.Padding = new Thickness(10, 5, 10, 5);
+            Grid brightnessContent = new Grid();
+            brightnessContent.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(38) });
+            brightnessContent.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            Border brightnessBadge = new Border
+            {
+                Width = 30,
+                Height = 30,
+                CornerRadius = new CornerRadius(9),
+                Background = new SolidColorBrush(Color.FromArgb(18, 255, 255, 255)),
+                VerticalAlignment = VerticalAlignment.Center,
+                Child = Ui.Vector(OrlaIcon.BrightnessHigh, Loc.Brightness, 20)
+            };
+            brightnessContent.Children.Add(brightnessBadge);
             _brightnessSlider = new LightweightSlider
             {
                 Minimum = 0,
@@ -184,49 +212,17 @@ namespace Orla
                 IsSnapToTickEnabled = true,
                 IsMoveToPointEnabled = true,
                 Height = 26,
-                Margin = new Thickness(2, 10, 2, 1),
-                ToolTip = Loc.Brightness,
+                Margin = new Thickness(2, 0, 2, 0),
+                VerticalAlignment = VerticalAlignment.Center,
+                ToolTip = Loc.CheckingMonitorSupport,
                 IsEnabled = false
             };
             System.Windows.Automation.AutomationProperties.SetName(_brightnessSlider, Loc.Brightness);
             _brightnessSlider.ValueChanged += OnBrightnessChanged;
+            Grid.SetColumn(_brightnessSlider, 1);
             brightnessContent.Children.Add(_brightnessSlider);
             brightnessCard.Child = brightnessContent;
             content.Children.Add(brightnessCard);
-
-            Grid nativeActions = new Grid { Margin = new Thickness(0, 9, 0, 0) };
-            nativeActions.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(154) });
-            nativeActions.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(8) });
-            nativeActions.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(154) });
-            Button energySaver = CreateCompactActionTile(OrlaIcon.EnergySaver, Loc.EnergySaver,
-                Loc.OpenEnergySaverSettings, delegate
-                {
-                    ShellActions.OpenUri("ms-settings:batterysaver-settings");
-                    RequestClose(false);
-                });
-            nativeActions.Children.Add(energySaver);
-            Button nightLight = CreateCompactActionTile(OrlaIcon.NightLight, Loc.NightLight,
-                Loc.OpenNightLightSettings, delegate
-                {
-                    ShellActions.OpenUri("ms-settings:nightlight");
-                    RequestClose(false);
-                });
-            Grid.SetColumn(nightLight, 2);
-            nativeActions.Children.Add(nightLight);
-            content.Children.Add(nativeActions);
-
-            Border batteryCard = CreateCard();
-            batteryCard.Margin = new Thickness(0, 9, 0, 0);
-            Grid batteryRow = CreateStatusRow(OrlaIcon.Battery, 20,
-                out _batteryGlyph, out _batteryTitle, out _batteryDetail, true, null, null);
-            batteryCard.Child = batteryRow;
-            Button batteryAction = CreateActionCard(batteryCard, Loc.OpenPowerSettings, delegate
-            {
-                ShellActions.OpenUri("ms-settings:powersleep");
-                RequestClose(false);
-            });
-            batteryAction.Margin = new Thickness(0, 9, 0, 0);
-            content.Children.Add(batteryAction);
 
             Content = _surface;
 
@@ -258,85 +254,54 @@ namespace Orla
             };
         }
 
-        private static Grid CreateStatusRow(OrlaIcon initialIcon, double iconSize,
-            out VectorIcon glyph, out TextBlock title, out TextBlock detail,
-            bool actionable, string iconActionName, Action iconAction)
+        private static Grid CreateCompactStatusContent(OrlaIcon initialIcon, double iconSize,
+            out VectorIcon glyph, out TextBlock title, out TextBlock detail)
         {
-            Grid row = new Grid();
-            row.MinHeight = 32;
-            row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(42) });
+            Grid row = new Grid { Margin = new Thickness(8, 7, 3, 7) };
+            row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(37) });
             row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-            row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(actionable ? 18 : 0) });
             glyph = Ui.Vector(initialIcon, Loc.Status, iconSize);
-
-            if (iconAction != null)
+            Border iconBadge = new Border
             {
-                Button iconButton = Ui.WrapButton(glyph, iconActionName, 30, 30);
-                iconButton.Background = new SolidColorBrush(Color.FromArgb(18, 255, 255, 255));
-                iconButton.Click += delegate { iconAction(); };
-                iconButton.HorizontalAlignment = HorizontalAlignment.Left;
-                Ui.EnableTopBarMotion(iconButton);
-                row.Children.Add(iconButton);
-            }
-            else
-            {
-                Border iconBadge = new Border
-                {
-                    Width = 30,
-                    Height = 30,
-                    CornerRadius = new CornerRadius(9),
-                    Background = new SolidColorBrush(Color.FromArgb(18, 255, 255, 255)),
-                    HorizontalAlignment = HorizontalAlignment.Left,
-                    Child = glyph
-                };
-                row.Children.Add(iconBadge);
-            }
+                Width = 30,
+                Height = 30,
+                CornerRadius = new CornerRadius(9),
+                Background = new SolidColorBrush(Color.FromArgb(18, 255, 255, 255)),
+                HorizontalAlignment = HorizontalAlignment.Left,
+                VerticalAlignment = VerticalAlignment.Center,
+                Child = glyph
+            };
+            row.Children.Add(iconBadge);
 
             StackPanel labels = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
-            title = Ui.Text("", 12.5, FontWeights.SemiBold);
+            title = Ui.Text("", 11.25, FontWeights.SemiBold);
+            title.TextTrimming = TextTrimming.CharacterEllipsis;
             labels.Children.Add(title);
-            detail = Ui.Text("", 10.5, FontWeights.Normal);
+            detail = Ui.Text("", 10, FontWeights.Normal);
             detail.Foreground = Ui.SecondaryTextBrush;
-            detail.Margin = new Thickness(0, 2, 0, 0);
+            detail.Margin = new Thickness(0, 1, 0, 0);
             detail.HorizontalAlignment = HorizontalAlignment.Left;
             detail.TextTrimming = TextTrimming.CharacterEllipsis;
-            detail.MaxWidth = 228;
             labels.Children.Add(detail);
             Grid.SetColumn(labels, 1);
             row.Children.Add(labels);
-
-            if (actionable)
-            {
-                VectorIcon chevron = Ui.Vector(OrlaIcon.ChevronRight, Loc.OpenWindowsSettings, 12);
-                chevron.Foreground = Ui.SecondaryTextBrush;
-                chevron.HorizontalAlignment = HorizontalAlignment.Right;
-                chevron.VerticalAlignment = VerticalAlignment.Center;
-                Grid.SetColumn(chevron, 2);
-                row.Children.Add(chevron);
-            }
             return row;
         }
 
-        private static Button CreateActionCard(Border card, string accessibleName, Action action)
-        {
-            return CreateActionCard(card, accessibleName, action, 316, double.NaN);
-        }
-
-        private static Border CreateSplitToggleCard(Grid content, string toggleName, Action toggle,
+        private static Border CreateCompactSplitToggleCard(Grid content, string toggleName, Action toggle,
             string settingsName, Action openSettings, out Button toggleButton)
         {
             Border surface = CreateCard();
-            surface.Width = 316;
-            surface.Height = 56;
+            surface.Width = 154;
+            surface.Height = 58;
             surface.Padding = new Thickness(0);
 
             Grid split = new Grid();
-            split.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(271) });
+            split.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(116) });
             split.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1) });
-            split.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(44) });
+            split.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(37) });
 
-            content.Margin = new Thickness(12, 8, 5, 8);
-            toggleButton = Ui.WrapButton(content, toggleName, 271, 54);
+            toggleButton = Ui.WrapButton(content, toggleName, 116, 56);
             Ui.EnableTopBarMotion(toggleButton);
             toggleButton.Click += delegate { toggle(); };
             split.Children.Add(toggleButton);
@@ -351,7 +316,7 @@ namespace Orla
             split.Children.Add(separator);
 
             VectorIcon chevron = Ui.Vector(OrlaIcon.ChevronRight, settingsName, 12);
-            Button settingsButton = Ui.WrapButton(chevron, settingsName, 43, 54);
+            Button settingsButton = Ui.WrapButton(chevron, settingsName, 36, 56);
             settingsButton.Margin = new Thickness(0);
             Ui.EnableTopBarMotion(settingsButton);
             settingsButton.Click += delegate { openSettings(); };
@@ -362,77 +327,46 @@ namespace Orla
             return surface;
         }
 
-        private static Button CreateCompactActionTile(OrlaIcon icon, string title,
-            string accessibleName, Action action)
+        private static Border CreateCompactSettingsTile(OrlaIcon icon, string title,
+            string accessibleName, Action action, out VectorIcon glyph, out TextBlock detail)
         {
-            Border card = CreateCard();
-            card.Padding = new Thickness(9, 8, 9, 8);
-            Grid content = new Grid { Height = 38 };
-            content.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(37) });
-            content.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-            content.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(14) });
+            TextBlock label;
+            Grid status = CreateCompactStatusContent(icon, 18, out glyph, out label, out detail);
+            label.Text = title;
+            detail.Text = Loc.Unavailable;
 
-            Border iconBadge = new Border
+            Border surface = CreateCard();
+            surface.Width = 154;
+            surface.Height = 58;
+            surface.Padding = new Thickness(0);
+            Grid split = new Grid();
+            split.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(116) });
+            split.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1) });
+            split.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(37) });
+
+            Button statusButton = Ui.WrapButton(status, accessibleName, 116, 56);
+            Ui.EnableTopBarMotion(statusButton);
+            statusButton.Click += delegate { action(); };
+            split.Children.Add(statusButton);
+
+            Border separator = new Border
             {
-                Width = 30,
-                Height = 30,
-                CornerRadius = new CornerRadius(9),
-                Background = new SolidColorBrush(Color.FromArgb(18, 255, 255, 255)),
-                HorizontalAlignment = HorizontalAlignment.Left,
-                VerticalAlignment = VerticalAlignment.Center,
-                Child = Ui.Vector(icon, title, 18)
+                Width = 1,
+                Margin = new Thickness(0, 9, 0, 9),
+                Background = new SolidColorBrush(Color.FromArgb(30, 255, 255, 255))
             };
-            content.Children.Add(iconBadge);
+            Grid.SetColumn(separator, 1);
+            split.Children.Add(separator);
 
-            TextBlock label = Ui.Text(title, 11.25, FontWeights.SemiBold);
-            label.TextWrapping = TextWrapping.Wrap;
-            label.VerticalAlignment = VerticalAlignment.Center;
-            label.LineHeight = 14;
-            label.LineStackingStrategy = LineStackingStrategy.BlockLineHeight;
-            Grid.SetColumn(label, 1);
-            content.Children.Add(label);
+            VectorIcon chevron = Ui.Vector(OrlaIcon.ChevronRight, accessibleName, 11);
+            Button settingsButton = Ui.WrapButton(chevron, accessibleName, 36, 56);
+            Ui.EnableTopBarMotion(settingsButton);
+            settingsButton.Click += delegate { action(); };
+            Grid.SetColumn(settingsButton, 2);
+            split.Children.Add(settingsButton);
 
-            VectorIcon chevron = Ui.Vector(OrlaIcon.ChevronRight, Loc.OpenWindowsSettings, 11);
-            chevron.Foreground = Ui.SecondaryTextBrush;
-            chevron.HorizontalAlignment = HorizontalAlignment.Right;
-            chevron.VerticalAlignment = VerticalAlignment.Center;
-            Grid.SetColumn(chevron, 2);
-            content.Children.Add(chevron);
-
-            card.Child = content;
-            return CreateActionCard(card, accessibleName, action, 154, 56);
-        }
-
-        private static Button CreateActionCard(Border card, string accessibleName, Action action,
-            double width, double height)
-        {
-            Color normal = Color.FromRgb(44, 44, 48);
-            Color hover = Color.FromRgb(51, 51, 56);
-            Color pressed = Color.FromRgb(39, 49, 62);
-            Color normalBorder = Color.FromRgb(57, 57, 62);
-            SolidColorBrush background = new SolidColorBrush(normal);
-            SolidColorBrush border = new SolidColorBrush(normalBorder);
-            card.Background = background;
-            card.BorderBrush = border;
-            card.Width = width;
-            if (!double.IsNaN(height)) card.Height = height;
-            Button button = Ui.WrapButton(card, accessibleName, width, height);
-            button.MouseEnter += delegate { Ui.AnimateBrush(background, hover, 110); };
-            button.MouseLeave += delegate { Ui.AnimateBrush(background, button.IsKeyboardFocusWithin ? hover : normal, 110); };
-            button.PreviewMouseLeftButtonDown += delegate { Ui.AnimateBrush(background, pressed, 65); };
-            button.PreviewMouseLeftButtonUp += delegate { Ui.AnimateBrush(background, button.IsMouseOver ? hover : normal, 90); };
-            button.GotKeyboardFocus += delegate
-            {
-                Ui.AnimateBrush(background, hover, 110);
-                Ui.AnimateBrush(border, Color.FromArgb(180, 10, 132, 255), 120);
-            };
-            button.LostKeyboardFocus += delegate
-            {
-                Ui.AnimateBrush(background, button.IsMouseOver ? hover : normal, 110);
-                Ui.AnimateBrush(border, normalBorder, 120);
-            };
-            button.Click += delegate { action(); };
-            return button;
+            surface.Child = split;
+            return surface;
         }
 
         private void OnLoaded(object sender, RoutedEventArgs eventArgs)
@@ -441,6 +375,7 @@ namespace Orla
             _shownAt = DateTime.UtcNow;
             BeginBrightnessDetection();
             BeginRadioRefresh();
+            BeginQuickSettingsRefresh();
             if (!SystemParameters.ClientAreaAnimation)
             {
                 Opacity = 1;
@@ -511,7 +446,13 @@ namespace Orla
         {
             if (_updatingVolume || !_audioAvailable) return;
             int percent = Math.Max(0, Math.Min(100, (int)Math.Round(eventArgs.NewValue)));
-            _volumePercent.Text = _audioMuted ? Loc.Muted : percent.ToString(Loc.FormattingCulture) + "%";
+            string description = Loc.VolumeStatus(percent, _audioMuted);
+            string percentage = percent.ToString(Loc.FormattingCulture) + "%";
+            _volumeSlider.ToolTip = percentage;
+            _volumeButton.ToolTip = percentage;
+            ToolTipService.SetToolTip(_volumeGlyph, percentage);
+            System.Windows.Automation.AutomationProperties.SetName(_volumeSlider, description);
+            System.Windows.Automation.AutomationProperties.SetName(_volumeButton, description);
             _volumeGlyph.SetIcon(StatusIcons.Volume(percent, _audioMuted));
             _statusMonitor.SetVolumePercent(eventArgs.NewValue);
         }
@@ -520,8 +461,11 @@ namespace Orla
         {
             if (_updatingBrightness || _brightness == null || _brightness.SupportedCount == 0) return;
             _pendingBrightness = Math.Max(0, Math.Min(100, (int)Math.Round(eventArgs.NewValue)));
-            _brightnessDetail.Text = _pendingBrightness.ToString(Loc.FormattingCulture) + "% • "
+            string description = _pendingBrightness.ToString(Loc.FormattingCulture) + "% • "
                 + Loc.BrightnessTargets(_brightness.IntegratedCount, _brightness.DdcCount);
+            _brightnessSlider.ToolTip = description;
+            System.Windows.Automation.AutomationProperties.SetName(_brightnessSlider,
+                Loc.Brightness + " • " + description);
             _brightnessSetTimer.Stop();
             _brightnessSetTimer.Start();
         }
@@ -555,13 +499,18 @@ namespace Orla
                     {
                         _brightnessSlider.Value = percent;
                         _brightnessSlider.IsEnabled = true;
-                        _brightnessDetail.Text = percent.ToString(Loc.FormattingCulture) + "% • "
+                        string description = percent.ToString(Loc.FormattingCulture) + "% • "
                             + Loc.BrightnessTargets(service.IntegratedCount, service.DdcCount);
+                        _brightnessSlider.ToolTip = description;
+                        System.Windows.Automation.AutomationProperties.SetName(_brightnessSlider,
+                            Loc.Brightness + " • " + description);
                     }
                     else
                     {
                         _brightnessSlider.IsEnabled = false;
-                        _brightnessDetail.Text = Loc.DdcUnavailable;
+                        _brightnessSlider.ToolTip = Loc.DdcUnavailable;
+                        System.Windows.Automation.AutomationProperties.SetName(_brightnessSlider,
+                            Loc.Brightness + " • " + Loc.DdcUnavailable);
                     }
                     _updatingBrightness = false;
                 }), DispatcherPriority.Background);
@@ -591,6 +540,18 @@ namespace Orla
             });
         }
 
+        private void BeginQuickSettingsRefresh()
+        {
+            ThreadPool.QueueUserWorkItem(delegate
+            {
+                QuickSettingsSnapshot quickSettings = QuickSettingsSnapshot.Read();
+                Dispatcher.BeginInvoke(new Action(delegate
+                {
+                    if (!_disposed) RefreshQuickSettings(quickSettings);
+                }), DispatcherPriority.Background);
+            });
+        }
+
         private void ToggleRadio(RadioKind kind, Button button)
         {
             if (Interlocked.CompareExchange(ref _radioOperation, 1, 0) != 0) return;
@@ -603,6 +564,8 @@ namespace Orla
                     RadioService.Toggle(kind);
                     Thread.Sleep(160);
                     _radios = RadioService.Read();
+                    if (kind == RadioKind.Bluetooth && _radios.Bluetooth.IsAvailable)
+                        _statusMonitor.SetBluetoothRadioState(_radios.Bluetooth.IsEnabled);
                 }
                 finally
                 {
@@ -624,7 +587,7 @@ namespace Orla
             RefreshAudio(state.Audio, state.AudioAvailable);
             RefreshNetwork(state.Network);
             RefreshBluetooth(state.Bluetooth);
-            RefreshBattery(state.Battery);
+            RefreshQuickSettings(state.QuickSettings);
             ApplyRadioState(state);
         }
 
@@ -640,6 +603,14 @@ namespace Orla
             ApplyToggleSurface(_bluetoothSurface, bluetoothEnabled, bluetoothKnown);
             _networkToggleButton.IsEnabled = Volatile.Read(ref _radioOperation) == 0 && wifiKnown;
             _bluetoothToggleButton.IsEnabled = Volatile.Read(ref _radioOperation) == 0 && bluetoothKnown;
+
+            _networkTitle.Text = Loc.Wifi;
+            if (wifiKnown && wifiEnabled && !(state.Network.IsWifi && state.Network.IsAvailable))
+            {
+                _networkDetail.Text = Loc.Enabled;
+                _networkGlyph.SetIcon(OrlaIcon.WifiMedium);
+                _networkGlyph.Foreground = Ui.PrimaryTextBrush;
+            }
 
             if (wifiKnown && !wifiEnabled)
             {
@@ -678,8 +649,13 @@ namespace Orla
             if (!available)
             {
                 _volumeSlider.IsEnabled = false;
-                _muteButton.IsEnabled = false;
-                _volumePercent.Text = Loc.Unavailable;
+                _volumeSlider.ToolTip = Loc.Unavailable;
+                _volumeButton.ToolTip = Loc.Unavailable;
+                ToolTipService.SetToolTip(_volumeGlyph, Loc.Unavailable);
+                System.Windows.Automation.AutomationProperties.SetName(_volumeSlider,
+                    Loc.MasterVolume + " • " + Loc.Unavailable);
+                System.Windows.Automation.AutomationProperties.SetName(_volumeButton,
+                    Loc.ToggleMute + " • " + Loc.Unavailable);
                 _volumeGlyph.SetIcon(OrlaIcon.VolumeMuted);
                 _volumeGlyph.Foreground = Ui.ErrorBrush;
                 return;
@@ -689,21 +665,33 @@ namespace Orla
             _volumeSlider.Value = state.VolumePercent;
             _updatingVolume = false;
             _audioMuted = state.IsMuted;
-            _volumePercent.Text = state.IsMuted ? Loc.Muted : state.VolumePercent.ToString(Loc.FormattingCulture) + "%";
+            string description = Loc.VolumeStatus(state.VolumePercent, state.IsMuted);
+            string percentage = state.VolumePercent.ToString(Loc.FormattingCulture) + "%";
+            _volumeSlider.ToolTip = percentage;
+            _volumeButton.ToolTip = percentage;
+            ToolTipService.SetToolTip(_volumeGlyph, percentage);
+            System.Windows.Automation.AutomationProperties.SetName(_volumeSlider, description);
+            System.Windows.Automation.AutomationProperties.SetName(_volumeButton, description);
             _volumeGlyph.SetIcon(StatusIcons.Volume(state.VolumePercent, state.IsMuted));
             _volumeGlyph.Foreground = state.IsMuted ? Ui.SecondaryTextBrush : Ui.PrimaryTextBrush;
             _volumeGlyph.SetAccessibleName(Loc.VolumeStatus(state.VolumePercent, state.IsMuted));
-            _muteText.Text = state.IsMuted ? Loc.Unmute : Loc.Mute;
         }
 
         private void RefreshNetwork(NetworkSnapshot state)
         {
             if (state == null) return;
-            _networkTitle.Text = state.Name;
-            _networkDetail.Text = state.Detail;
+            _networkTitle.Text = Loc.Wifi;
+            _networkDetail.Text = state.IsWifi && state.IsAvailable
+                && !string.IsNullOrWhiteSpace(state.ConnectionName) ? state.ConnectionName
+                : state.IsWifi && state.IsAvailable && state.SignalQuality >= 0
+                    ? state.SignalQuality.ToString(Loc.FormattingCulture) + "%"
+                    : state.IsAvailable ? Loc.Connected : Loc.NoConnection;
             _networkGlyph.SetIcon(StatusIcons.Network(state));
-            _networkGlyph.Foreground = state.IsAvailable ? Ui.SuccessBrush : Ui.ErrorBrush;
+            _networkGlyph.Foreground = state.IsAvailable ? Ui.PrimaryTextBrush : Ui.ErrorBrush;
             _networkGlyph.SetAccessibleName(state.Name + " • " + state.Detail);
+            _networkToggleButton.ToolTip = state.Name + " • " + state.Detail;
+            System.Windows.Automation.AutomationProperties.SetName(_networkToggleButton,
+                state.Name + " • " + state.Detail);
         }
 
         private void RefreshBluetooth(BluetoothSnapshot state)
@@ -713,9 +701,13 @@ namespace Orla
                 _bluetoothSurface.Visibility = Visibility.Visible;
                 _bluetoothTitle.Text = Loc.Bluetooth;
                 _bluetoothDetail.Text = !state.IsEnabled ? Loc.Disabled
-                    : state.IsConnected ? state.DeviceName : Loc.NoBluetoothDevice;
-                _bluetoothGlyph.Foreground = state.IsConnected ? Ui.AccentBrush : Ui.SecondaryTextBrush;
+                    : state.IsConnected && !string.IsNullOrWhiteSpace(state.DeviceName)
+                        ? state.DeviceName : Loc.Enabled;
+                _bluetoothGlyph.Foreground = Ui.PrimaryTextBrush;
                 _bluetoothGlyph.SetAccessibleName(Loc.BluetoothStatus(state));
+                _bluetoothToggleButton.ToolTip = Loc.BluetoothStatus(state);
+                System.Windows.Automation.AutomationProperties.SetName(_bluetoothToggleButton,
+                    Loc.BluetoothStatus(state));
             }
             catch (Exception exception)
             {
@@ -727,25 +719,24 @@ namespace Orla
             }
         }
 
-        private void RefreshBattery(BatterySnapshot state)
+        private void RefreshQuickSettings(QuickSettingsSnapshot state)
         {
-            try
-            {
-                _batteryTitle.Text = state.Status;
-                _batteryDetail.Text = state.Detail;
-                _batteryGlyph.SetBatteryState(state.Percent, state.HasBattery, state.IsCharging);
-                _batteryGlyph.Foreground = !state.HasBattery ? Ui.SecondaryTextBrush
-                    : state.IsCharging ? Ui.SuccessBrush
-                    : state.Percent <= 20 ? Ui.ErrorBrush : Ui.PrimaryTextBrush;
-                _batteryGlyph.SetAccessibleName(Loc.BatteryStatus(state));
-            }
-            catch (Exception exception)
-            {
-                Logger.Write("Falha ao consultar bateria: " + exception.Message);
-                _batteryTitle.Text = Loc.Energy;
-                _batteryDetail.Text = Loc.TemporarilyUnavailable;
-                _batteryGlyph.Foreground = Ui.SecondaryTextBrush;
-            }
+            if (state == null || _disposed) return;
+            ApplyToggleSurface(_energySaverSurface, state.EnergySaverEnabled,
+                state.EnergySaverAvailable);
+            ApplyToggleSurface(_nightLightSurface, state.NightLightEnabled,
+                state.NightLightAvailable);
+
+            _energySaverDetail.Text = !state.EnergySaverAvailable ? Loc.Unavailable
+                : state.EnergySaverEnabled ? Loc.Enabled : Loc.Disabled;
+            _nightLightDetail.Text = !state.NightLightAvailable ? Loc.Unavailable
+                : state.NightLightEnabled ? Loc.Enabled : Loc.Disabled;
+            _energySaverGlyph.Foreground = state.EnergySaverAvailable
+                ? Ui.PrimaryTextBrush : Ui.SecondaryTextBrush;
+            _nightLightGlyph.Foreground = state.NightLightAvailable
+                ? Ui.PrimaryTextBrush : Ui.SecondaryTextBrush;
+            _energySaverGlyph.SetAccessibleName(Loc.EnergySaver + " • " + _energySaverDetail.Text);
+            _nightLightGlyph.SetAccessibleName(Loc.NightLight + " • " + _nightLightDetail.Text);
         }
 
         private void OnClosed(object sender, EventArgs eventArgs)

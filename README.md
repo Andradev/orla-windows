@@ -28,24 +28,26 @@ O projeto nasceu de uma meta simples: manter a fluidez visual de um dock moderno
 - clique no app ativo minimiza e devolve o foco ao aplicativo anterior; outro clique restaura; clicar em outro app o ativa com confirmação e tentativas limitadas quando o Windows adia o foco;
 - indicador de foco atualizado imediatamente por evento nativo do Windows;
 - ordem dos aplicativos por arrastar e soltar, sem transformar apps fechados em fixos;
-- somente o Explorador fica fixado por padrão;
+- nenhum aplicativo fica fixado por padrão; favoritos são adicionados explicitamente pelo menu de contexto;
 - Lixeira ao fim do dock com o ícone oficial do Windows, atualizado automaticamente entre vazia e cheia;
 - menu de contexto para janelas, nova instância, fixar, desafixar e fechar;
 - Fluent Search opcional: `Win` isolado alterna abrir/ocultar pelo canal local da própria instância, aceita toques rápidos em ordem e posiciona no monitor em uso sem salto visível;
 - botões do Fluent Search em cada tela sempre abrem a busca naquela tela;
 - `Win+Shift+S`, `Win+E`, `Win+D` e outras combinações continuam no Windows;
-- indicadores oficiais Microsoft Fluent UI de Wi-Fi, volume, bateria e Bluetooth, sincronizados nas duas telas e reunidos em uma única área interativa;
+- indicadores oficiais Microsoft Fluent UI de Wi-Fi, volume e bateria, sincronizados nas duas telas e reunidos em uma única área interativa;
 - chevron da topbar abre e fecha os ícones ocultos nativos, acompanha o estado com animação e remove o destaque indevido do primeiro item;
 - hover dos controles mantém ícones e textos imóveis e realça apenas a superfície arredondada ao fundo;
-- intensidade do Wi-Fi por API nativa, com estado desconectado explícito e sem leitura de SSID;
+- intensidade do Wi-Fi e nome do perfil conectado por API nativa, com fallback automático para somente o sinal quando a privacidade ou política do Windows restringe o nome;
 - painel rápido em português, inglês ou espanhol conforme o idioma de exibição do Windows;
 - data, ordem dos campos e relógio de 12/24 horas seguem separadamente o formato regional configurado no Windows;
-- painel com volume, mute e um único controle de brilho para o computador; a tela integrada usa WMI e monitores externos compatíveis usam DDC/CI;
+- painel compacto em grade com Wi-Fi, Bluetooth, Economia de energia e Luz noturna; estados ligados usam a mesma superfície azul do Windows;
+- volume e brilho ficam em duas linhas independentes, somente com ícone e slider; o ícone de volume alterna mute e o hover do ícone ou slider mostra a porcentagem atual;
+- um único slider de brilho controla o computador; a tela integrada usa WMI e monitores externos compatíveis usam DDC/CI;
 - detecção do brilho executada em segundo plano, sem atrasar a abertura do painel;
 - Wi-Fi e Bluetooth usam cartões divididos no padrão do Windows: o corpo alterna o rádio pela API oficial e o chevron abre a configuração específica;
-- Economia de energia e Luz noturna encaminham para as páginas oficiais do Windows, sem escrita em chaves internas e instáveis do sistema;
+- Economia de energia e Luz noturna mostram o estado atual e encaminham para as páginas oficiais do Windows, sem escrever em chaves internas do sistema;
 - ícones vetoriais de 20 px consistentes para sinal, volume e níveis de bateria; o próprio ícone de som no painel também alterna mute;
-- Bluetooth permanece configurável no painel quando desligado e só ocupa espaço na topbar quando está habilitado;
+- Bluetooth permanece exclusivamente no painel, inclusive quando desligado, sem ocupar espaço na topbar;
 - restauração explícita da barra nativa ao sair, desinstalar ou usar `--restore`.
 
 ![Painel rápido com estados reais](docs/images/quick-panel.png)
@@ -119,7 +121,7 @@ FluentSearchPath=C:\Program Files\Fluent Search\FluentSearch.exe
 BareWindowsKeyOpensFluent=true
 TopBarHeight=29
 DockReservedHeight=61
-PinnedApp=Explorador de Arquivos|C:\Windows\explorer.exe
+PinnedApp=
 ```
 
 Feche o Orla antes de editar. Use `BareWindowsKeyOpensFluent=false` para manter o menu Iniciar na tecla Windows. Linhas `AppOrder=` guardam somente a ordem; aplicativos fechados continuam desaparecendo.

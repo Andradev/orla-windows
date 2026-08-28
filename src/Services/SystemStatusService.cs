@@ -1,8 +1,10 @@
 using System;
 using System.Linq;
 using System.Net.NetworkInformation;
+using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Threading;
+using Microsoft.Win32;
 using Forms = System.Windows.Forms;
 
 namespace Orla
@@ -14,14 +16,17 @@ namespace Orla
         internal readonly int SignalQuality;
         internal readonly string Name;
         internal readonly string Detail;
+        internal readonly string ConnectionName;
 
-        internal NetworkSnapshot(bool isAvailable, bool isWifi, int signalQuality, string name, string detail)
+        internal NetworkSnapshot(bool isAvailable, bool isWifi, int signalQuality, string name,
+            string detail, string connectionName)
         {
             IsAvailable = isAvailable;
             IsWifi = isWifi;
             SignalQuality = signalQuality;
             Name = name;
             Detail = detail;
+            ConnectionName = connectionName;
         }
     }
 
@@ -78,7 +83,8 @@ namespace Orla
                     .FirstOrDefault();
 
                 if (active == null || !NetworkInterface.GetIsNetworkAvailable())
-                    return new NetworkSnapshot(false, false, -1, Loc.NoConnection, Loc.CheckNetwork);
+                    return new NetworkSnapshot(false, false, -1, Loc.NoConnection, Loc.CheckNetwork,
+                        string.Empty);
 
                 bool isWifi = active.NetworkInterfaceType == NetworkInterfaceType.Wireless80211;
                 string kind;
@@ -92,15 +98,20 @@ namespace Orla
                 if (string.Equals(detail, "Wi-Fi", StringComparison.OrdinalIgnoreCase)
                     || string.Equals(detail, "Ethernet", StringComparison.OrdinalIgnoreCase))
                     detail = Loc.InternetAvailable;
-                int signalQuality = isWifi ? NativeWifiSignal.ReadQuality() : -1;
+                WifiConnectionSnapshot wifi = isWifi ? NativeWifiSignal.Read()
+                    : WifiConnectionSnapshot.Unavailable;
+                int signalQuality = wifi.SignalQuality;
+                string connectionName = wifi.Name;
+                if (isWifi && !string.IsNullOrWhiteSpace(connectionName)) detail = connectionName;
                 if (isWifi && signalQuality >= 0)
                     detail = detail + " • " + Loc.WifiSignal(signalQuality);
-                return new NetworkSnapshot(true, isWifi, signalQuality, kind, detail);
+                return new NetworkSnapshot(true, isWifi, signalQuality, kind, detail, connectionName);
             }
             catch (Exception exception)
             {
                 Logger.Write("Falha ao consultar rede: " + exception.Message);
-                return new NetworkSnapshot(false, false, -1, Loc.NetworkStatus, Loc.TemporarilyUnavailable);
+                return new NetworkSnapshot(false, false, -1, Loc.NetworkStatus,
+                    Loc.TemporarilyUnavailable, string.Empty);
             }
         }
 
@@ -249,28 +260,122 @@ namespace Orla
         }
     }
 
+    internal sealed class QuickSettingsSnapshot
+    {
+        private const string NightLightStatePath =
+            @"Software\Microsoft\Windows\CurrentVersion\CloudStore\Store\DefaultAccount\Current\default$windows.data.bluelightreduction.bluelightreductionstate\windows.data.bluelightreduction.bluelightreductionstate";
+
+        internal readonly bool EnergySaverAvailable;
+        internal readonly bool EnergySaverEnabled;
+        internal readonly bool NightLightAvailable;
+        internal readonly bool NightLightEnabled;
+
+        internal QuickSettingsSnapshot(bool energySaverAvailable, bool energySaverEnabled,
+            bool nightLightAvailable, bool nightLightEnabled)
+        {
+            EnergySaverAvailable = energySaverAvailable;
+            EnergySaverEnabled = energySaverEnabled;
+            NightLightAvailable = nightLightAvailable;
+            NightLightEnabled = nightLightEnabled;
+        }
+
+        internal static QuickSettingsSnapshot Read()
+        {
+            bool energySaverEnabled;
+            bool nightLightEnabled;
+            bool energySaverAvailable = TryReadEnergySaver(out energySaverEnabled);
+            bool nightLightAvailable = TryReadNightLight(out nightLightEnabled);
+            return new QuickSettingsSnapshot(energySaverAvailable, energySaverEnabled,
+                nightLightAvailable, nightLightEnabled);
+        }
+
+        private static bool TryReadEnergySaver(out bool enabled)
+        {
+            enabled = false;
+            try
+            {
+                Type powerManager = Type.GetType(
+                    "Windows.System.Power.PowerManager, Windows, ContentType=WindowsRuntime", false);
+                if (powerManager == null) return false;
+                PropertyInfo statusProperty = powerManager.GetProperty("EnergySaverStatus",
+                    BindingFlags.Public | BindingFlags.Static);
+                if (statusProperty == null) return false;
+                string status = Convert.ToString(statusProperty.GetValue(null, null));
+                if (string.IsNullOrWhiteSpace(status)) return false;
+                enabled = string.Equals(status, "On", StringComparison.OrdinalIgnoreCase);
+                return string.Equals(status, "On", StringComparison.OrdinalIgnoreCase)
+                    || string.Equals(status, "Off", StringComparison.OrdinalIgnoreCase)
+                    || string.Equals(status, "Disabled", StringComparison.OrdinalIgnoreCase);
+            }
+            catch { return false; }
+        }
+
+        private static bool TryReadNightLight(out bool enabled)
+        {
+            enabled = false;
+            try
+            {
+                using (RegistryKey key = Registry.CurrentUser.OpenSubKey(NightLightStatePath))
+                {
+                    byte[] data = key == null ? null : key.GetValue("Data") as byte[];
+                    if (data == null || data.Length < 12) return false;
+
+                    // CloudStore contém dois envelopes Bond CompactBinary. No
+                    // segundo, o campo Int32 de id 0 existe somente quando a
+                    // Luz noturna está ativa. A leitura é estritamente passiva;
+                    // formatos desconhecidos retornam indisponível.
+                    int envelopes = 0;
+                    for (int index = 0; index <= data.Length - 5; index++)
+                    {
+                        if (data[index] != 0x43 || data[index + 1] != 0x42
+                            || data[index + 2] != 0x01 || data[index + 3] != 0x00) continue;
+                        envelopes++;
+                        if (envelopes != 2) continue;
+                        byte firstField = data[index + 4];
+                        if (firstField == 0x10)
+                        {
+                            enabled = true;
+                            return true;
+                        }
+                        if (firstField == 0xD0)
+                        {
+                            enabled = false;
+                            return true;
+                        }
+                        return false;
+                    }
+                }
+            }
+            catch { }
+            return false;
+        }
+    }
+
     internal sealed class SystemStatusSnapshot
     {
         internal readonly NetworkSnapshot Network;
         internal readonly AudioStateChangedEventArgs Audio;
         internal readonly BatterySnapshot Battery;
         internal readonly BluetoothSnapshot Bluetooth;
+        internal readonly QuickSettingsSnapshot QuickSettings;
         internal readonly bool AudioAvailable;
 
         internal SystemStatusSnapshot(NetworkSnapshot network, AudioStateChangedEventArgs audio,
-            BatterySnapshot battery, BluetoothSnapshot bluetooth, bool audioAvailable)
+            BatterySnapshot battery, BluetoothSnapshot bluetooth, QuickSettingsSnapshot quickSettings,
+            bool audioAvailable)
         {
             Network = network;
             Audio = audio;
             Battery = battery;
             Bluetooth = bluetooth;
+            QuickSettings = quickSettings;
             AudioAvailable = audioAvailable;
         }
     }
 
     // Uma única instância atende todas as topbars. Rede e volume usam eventos;
-    // bateria, Bluetooth e intensidade do Wi-Fi recebem uma leitura barata a
-    // cada 10 segundos para acompanhar mudanças que não geram evento gerenciado.
+    // bateria, Bluetooth, ações rápidas e intensidade do Wi-Fi recebem uma
+    // leitura barata a cada 10 segundos para acompanhar mudanças sem evento.
     internal sealed class SystemStatusMonitor : IDisposable
     {
         private readonly object _sync = new object();
@@ -287,7 +392,8 @@ namespace Orla
             _audio = new AudioService();
             _network = new NetworkStatusService();
             _snapshot = new SystemStatusSnapshot(
-                _network.ReadSnapshot(), _audio.ReadState(), BatterySnapshot.Read(), BluetoothSnapshot.Read(), _audio.IsAvailable);
+                _network.ReadSnapshot(), _audio.ReadState(), BatterySnapshot.Read(), BluetoothSnapshot.Read(),
+                QuickSettingsSnapshot.Read(), _audio.IsAvailable);
             _audio.StateChanged += OnAudioStateChanged;
             _network.StateChanged += OnNetworkStateChanged;
             _slowTimer = new Timer(OnSlowTimer, null, TimeSpan.FromSeconds(10), TimeSpan.FromSeconds(10));
@@ -308,12 +414,34 @@ namespace Orla
             _audio.ToggleMute();
         }
 
+        internal void SetBluetoothRadioState(bool enabled)
+        {
+            BluetoothSnapshot bluetooth;
+            if (!enabled)
+            {
+                bluetooth = new BluetoothSnapshot(false, false, string.Empty);
+            }
+            else
+            {
+                BluetoothSnapshot detected = BluetoothSnapshot.Read();
+                bluetooth = new BluetoothSnapshot(true, detected.IsConnected, detected.DeviceName);
+            }
+            lock (_sync)
+            {
+                if (_disposed) return;
+                _snapshot = new SystemStatusSnapshot(_snapshot.Network, _snapshot.Audio,
+                    _snapshot.Battery, bluetooth, _snapshot.QuickSettings, _snapshot.AudioAvailable);
+            }
+            RaiseStateChanged();
+        }
+
         private void OnAudioStateChanged(object sender, AudioStateChangedEventArgs state)
         {
             lock (_sync)
             {
                 if (_disposed) return;
-                _snapshot = new SystemStatusSnapshot(_snapshot.Network, state, _snapshot.Battery, _snapshot.Bluetooth, _audio.IsAvailable);
+                _snapshot = new SystemStatusSnapshot(_snapshot.Network, state, _snapshot.Battery,
+                    _snapshot.Bluetooth, _snapshot.QuickSettings, _audio.IsAvailable);
             }
             RaiseStateChanged();
         }
@@ -324,7 +452,8 @@ namespace Orla
             lock (_sync)
             {
                 if (_disposed) return;
-                _snapshot = new SystemStatusSnapshot(network, _snapshot.Audio, _snapshot.Battery, _snapshot.Bluetooth, _snapshot.AudioAvailable);
+                _snapshot = new SystemStatusSnapshot(network, _snapshot.Audio, _snapshot.Battery,
+                    _snapshot.Bluetooth, _snapshot.QuickSettings, _snapshot.AudioAvailable);
             }
             RaiseStateChanged();
         }
@@ -335,12 +464,14 @@ namespace Orla
             AudioStateChangedEventArgs audio;
             BatterySnapshot battery;
             BluetoothSnapshot bluetooth;
+            QuickSettingsSnapshot quickSettings;
             try
             {
                 network = _network.ReadSnapshot();
                 audio = _audio.ReadState();
                 battery = BatterySnapshot.Read();
                 bluetooth = BluetoothSnapshot.Read();
+                quickSettings = QuickSettingsSnapshot.Read();
             }
             catch (Exception exception)
             {
@@ -350,7 +481,8 @@ namespace Orla
             lock (_sync)
             {
                 if (_disposed) return;
-                _snapshot = new SystemStatusSnapshot(network, audio, battery, bluetooth, _audio.IsAvailable);
+                _snapshot = new SystemStatusSnapshot(network, audio, battery, bluetooth, quickSettings,
+                    _audio.IsAvailable);
             }
             RaiseStateChanged();
         }
@@ -379,14 +511,33 @@ namespace Orla
         }
     }
 
-    // Consulta somente o RSSI da interface conectada. Esse opcode não lê SSID
-    // nem perfis salvos e, portanto, não depende da permissão de localização.
+    internal sealed class WifiConnectionSnapshot
+    {
+        internal readonly int SignalQuality;
+        internal readonly string Name;
+
+        internal WifiConnectionSnapshot(int signalQuality, string name)
+        {
+            SignalQuality = signalQuality;
+            Name = name ?? string.Empty;
+        }
+
+        internal static WifiConnectionSnapshot Unavailable
+        {
+            get { return new WifiConnectionSnapshot(-1, string.Empty); }
+        }
+    }
+
+    // Consulta RSSI e, quando a política de privacidade permitir, o nome do
+    // perfil conectado. Falhas de acesso ao nome preservam o sinal e não
+    // solicitam permissões adicionais ao usuário.
     internal static class NativeWifiSignal
     {
         private const int WlanInterfaceStateConnected = 1;
+        private const int WlanIntfOpcodeCurrentConnection = 7;
         private const int WlanIntfOpcodeRssi = unchecked((int)0x10000102);
 
-        internal static int ReadQuality()
+        internal static WifiConnectionSnapshot Read()
         {
             IntPtr clientHandle = IntPtr.Zero;
             IntPtr interfaceList = IntPtr.Zero;
@@ -394,9 +545,9 @@ namespace Orla
             {
                 uint negotiatedVersion;
                 if (WlanNative.WlanOpenHandle(2, IntPtr.Zero, out negotiatedVersion, out clientHandle) != 0
-                    || clientHandle == IntPtr.Zero) return -1;
+                    || clientHandle == IntPtr.Zero) return WifiConnectionSnapshot.Unavailable;
                 if (WlanNative.WlanEnumInterfaces(clientHandle, IntPtr.Zero, out interfaceList) != 0
-                    || interfaceList == IntPtr.Zero) return -1;
+                    || interfaceList == IntPtr.Zero) return WifiConnectionSnapshot.Unavailable;
 
                 int count = Marshal.ReadInt32(interfaceList, 0);
                 int itemSize = Marshal.SizeOf(typeof(WlanInterfaceInfo));
@@ -407,23 +558,38 @@ namespace Orla
                         IntPtr.Add(firstItem, index * itemSize), typeof(WlanInterfaceInfo));
                     if (item.State != WlanInterfaceStateConnected) continue;
 
+                    int signalQuality = -1;
                     int dataSize;
                     IntPtr data;
                     int result = WlanNative.WlanQueryInterface(clientHandle, ref item.InterfaceGuid,
                         WlanIntfOpcodeRssi, IntPtr.Zero, out dataSize, out data, IntPtr.Zero);
-                    if (result != 0 || data == IntPtr.Zero)
+                    if (result == 0 && data != IntPtr.Zero)
                     {
-                        if (data != IntPtr.Zero) WlanNative.WlanFreeMemory(data);
-                        continue;
+                        try
+                        {
+                            int rssi = Marshal.ReadInt32(data);
+                            signalQuality = rssi <= -100 ? 0 : rssi >= -50 ? 100
+                                : Math.Max(0, Math.Min(100, 2 * (rssi + 100)));
+                        }
+                        finally { WlanNative.WlanFreeMemory(data); }
                     }
-                    try
+
+                    string profileName = string.Empty;
+                    data = IntPtr.Zero;
+                    result = WlanNative.WlanQueryInterface(clientHandle, ref item.InterfaceGuid,
+                        WlanIntfOpcodeCurrentConnection, IntPtr.Zero, out dataSize, out data, IntPtr.Zero);
+                    if (result == 0 && data != IntPtr.Zero)
                     {
-                        int rssi = Marshal.ReadInt32(data);
-                        if (rssi <= -100) return 0;
-                        if (rssi >= -50) return 100;
-                        return Math.Max(0, Math.Min(100, 2 * (rssi + 100)));
+                        try
+                        {
+                            if (dataSize >= 520)
+                                profileName = (Marshal.PtrToStringUni(IntPtr.Add(data, 8), 256)
+                                    ?? string.Empty).TrimEnd('\0').Trim();
+                        }
+                        finally { WlanNative.WlanFreeMemory(data); }
                     }
-                    finally { WlanNative.WlanFreeMemory(data); }
+                    else if (data != IntPtr.Zero) WlanNative.WlanFreeMemory(data);
+                    return new WifiConnectionSnapshot(signalQuality, profileName);
                 }
             }
             catch (Exception exception)
@@ -435,7 +601,7 @@ namespace Orla
                 if (interfaceList != IntPtr.Zero) WlanNative.WlanFreeMemory(interfaceList);
                 if (clientHandle != IntPtr.Zero) WlanNative.WlanCloseHandle(clientHandle, IntPtr.Zero);
             }
-            return -1;
+            return WifiConnectionSnapshot.Unavailable;
         }
     }
 

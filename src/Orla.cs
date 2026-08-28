@@ -28,8 +28,8 @@ using WpfEllipse = System.Windows.Shapes.Ellipse;
 [assembly: AssemblyCompany("Orla contributors")]
 [assembly: AssemblyProduct("Orla")]
 [assembly: AssemblyCopyright("MIT License")]
-[assembly: AssemblyVersion("1.2.5.0")]
-[assembly: AssemblyFileVersion("1.2.5.0")]
+[assembly: AssemblyVersion("1.2.6.0")]
+[assembly: AssemblyFileVersion("1.2.6.0")]
 
 namespace Orla
 {
@@ -876,15 +876,9 @@ namespace Orla
     {
         internal static List<PinnedApplication> GetDefaultPinnedApplications()
         {
-            List<PinnedApplication> result = new List<PinnedApplication>();
-            AddUnique(result, Loc.FileExplorer, Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Windows), "explorer.exe"));
-            return result;
-        }
-
-        private static void AddUnique(List<PinnedApplication> apps, string name, string path)
-        {
-            if (apps.Any(delegate(PinnedApplication app) { return string.Equals(app.Path, path, StringComparison.OrdinalIgnoreCase); })) return;
-            apps.Add(new PinnedApplication { Name = name, Path = path });
+            // O dock começa somente com os aplicativos realmente abertos.
+            // Favoritos são sempre uma escolha explícita do usuário.
+            return new List<PinnedApplication>();
         }
 
         internal static bool IsExpandedDefault(string path)
@@ -1084,8 +1078,6 @@ namespace Orla
         private readonly VectorIcon _volume;
         private readonly VectorIcon _batteryGlyph;
         private readonly TextBlock _batteryPercent;
-        private readonly VectorIcon _bluetooth;
-        private readonly FrameworkElement _bluetoothSlot;
         private readonly Button _statusButton;
         private readonly RotateTransform _trayOverflowRotation;
         private readonly DispatcherTimer _timer;
@@ -1183,13 +1175,6 @@ namespace Orla
             Grid.SetColumn(_batteryPercent, 2);
             batteryPanel.Children.Add(_batteryPercent);
             indicators.Children.Add(batteryPanel);
-
-            _bluetooth = Ui.Vector(OrlaIcon.Bluetooth, Loc.Bluetooth, 18);
-            System.Windows.Controls.ToolTipService.SetToolTip(_bluetooth, null);
-            Grid bluetoothSlot = new Grid { Width = statusCellWidth, Height = 25 };
-            bluetoothSlot.Children.Add(_bluetooth);
-            _bluetoothSlot = bluetoothSlot;
-            indicators.Children.Add(bluetoothSlot);
 
             VectorIcon trayOverflowGlyph = Ui.Vector(OrlaIcon.ChevronUp, Loc.HiddenTrayIcons, 13);
             _trayOverflowRotation = new RotateTransform(0);
@@ -1310,16 +1295,7 @@ namespace Orla
             }
             string batteryDescription = Loc.BatteryStatus(battery);
 
-            _bluetoothSlot.Visibility = state.Bluetooth.IsEnabled ? Visibility.Visible : Visibility.Collapsed;
-            string bluetoothDescription = null;
-            if (state.Bluetooth.IsEnabled)
-            {
-                _bluetooth.Foreground = state.Bluetooth.IsConnected ? Ui.AccentBrush : Ui.SecondaryTextBrush;
-                bluetoothDescription = Loc.BluetoothStatus(state.Bluetooth);
-            }
-
             List<string> descriptions = new List<string> { networkDescription, volumeDescription, batteryDescription };
-            if (!string.IsNullOrEmpty(bluetoothDescription)) descriptions.Add(bluetoothDescription);
             SetButtonDescription(_statusButton, string.Join(" • ", descriptions.ToArray()));
         }
 
@@ -2457,6 +2433,9 @@ namespace Orla
         private static DateTime _lastRecycleBinQueryAt = DateTime.MinValue;
         private static bool _lastRecycleBinFull;
         private static int _trayOverflowOperation;
+        private static int _trayOverflowCloseRequested;
+        private static int _trayOverflowKnownOpen;
+        private static int _trayOverflowLastClosedTick;
         internal static event Action<bool> TrayOverflowStateChanged;
 
         internal static void Start(string path)
@@ -2485,13 +2464,24 @@ namespace Orla
         internal static void ToggleTrayOverflow(string screenDeviceName, int topBarHeight)
         {
             IntPtr visiblePopup = FindTrayOverflow();
-            if (visiblePopup != IntPtr.Zero && NativeMethods.IsWindowVisible(visiblePopup))
+            bool popupVisible = visiblePopup != IntPtr.Zero && NativeMethods.IsWindowVisible(visiblePopup);
+            if (Volatile.Read(ref _trayOverflowOperation) != 0
+                || Volatile.Read(ref _trayOverflowKnownOpen) != 0 || popupVisible)
             {
+                Volatile.Write(ref _trayOverflowCloseRequested, 1);
                 RaiseTrayOverflowState(false);
-                NativeMethods.PostMessage(visiblePopup, NativeMethods.WmClose, IntPtr.Zero, IntPtr.Zero);
+                if (popupVisible) CloseTrayOverflowWindow(visiblePopup);
                 return;
             }
+
+            // Um clique real no chevron já conta como clique externo para o
+            // flyout. Se o Shell o fechou entre MouseDown e Click, não reabra
+            // imediatamente a mesma janela.
+            int sinceClosed = unchecked(Environment.TickCount
+                - Volatile.Read(ref _trayOverflowLastClosedTick));
+            if (sinceClosed >= 0 && sinceClosed < 350) return;
             if (Interlocked.CompareExchange(ref _trayOverflowOperation, 1, 0) != 0) return;
+            Volatile.Write(ref _trayOverflowCloseRequested, 0);
             ThreadPool.QueueUserWorkItem(delegate
             {
                 try
@@ -2500,9 +2490,26 @@ namespace Orla
                     if (existing != IntPtr.Zero && NativeMethods.IsWindowVisible(existing))
                     {
                         RaiseTrayOverflowState(false);
-                        NativeMethods.PostMessage(existing, NativeMethods.WmClose, IntPtr.Zero, IntPtr.Zero);
+                        CloseTrayOverflowWindow(existing);
                         Thread.Sleep(90);
                         return;
+                    }
+
+                    Forms.Screen targetScreen = Forms.Screen.AllScreens.FirstOrDefault(delegate(Forms.Screen item)
+                    {
+                        return string.Equals(item.DeviceName, screenDeviceName, StringComparison.OrdinalIgnoreCase);
+                    }) ?? Forms.Screen.PrimaryScreen;
+                    DrawingRectangle targetBounds = targetScreen.Bounds;
+                    NativeMethods.Rect dormantRectangle;
+                    if (existing != IntPtr.Zero && NativeMethods.GetWindowRect(existing, out dormantRectangle))
+                    {
+                        int dormantWidth = dormantRectangle.right - dormantRectangle.left;
+                        int dormantHeight = dormantRectangle.bottom - dormantRectangle.top;
+                        if (dormantWidth > 0 && dormantHeight > 0)
+                            NativeMethods.SetWindowPos(existing, NativeMethods.HwndTopmost,
+                                targetBounds.Right - dormantWidth - 8,
+                                targetBounds.Top + topBarHeight + 6,
+                                dormantWidth, dormantHeight, NativeMethods.SwpNoActivate);
                     }
 
                     NativeMethods.Input[] openTray =
@@ -2524,13 +2531,37 @@ namespace Orla
                         Marshal.SizeOf(typeof(NativeMethods.Input)));
 
                     IntPtr popup = IntPtr.Zero;
-                    for (int attempt = 0; attempt < 30 && popup == IntPtr.Zero; attempt++)
+                    for (int attempt = 0; attempt < 120 && popup == IntPtr.Zero; attempt++)
                     {
-                        Thread.Sleep(25);
+                        Thread.Sleep(5);
                         IntPtr candidate = FindTrayOverflow();
-                        if (candidate != IntPtr.Zero && NativeMethods.IsWindowVisible(candidate)) popup = candidate;
+                        if (candidate == IntPtr.Zero || !NativeMethods.IsWindowVisible(candidate)) continue;
+                        if (Volatile.Read(ref _trayOverflowCloseRequested) != 0)
+                        {
+                            CloseTrayOverflowWindow(candidate);
+                            return;
+                        }
+                        popup = candidate;
                     }
                     if (popup == IntPtr.Zero) return;
+
+                    // O Shell cria o flyout na posição padrão da taskbar.
+                    // Oculte-o assim que o HWND se tornar visível, mova ainda
+                    // oculto e só então revele-o junto à topbar.
+                    NativeMethods.ShowWindowAsync(popup, NativeMethods.SwHide);
+                    NativeMethods.Rect rectangle;
+                    int width = 0;
+                    int height = 0;
+                    if (NativeMethods.GetWindowRect(popup, out rectangle))
+                    {
+                        width = rectangle.right - rectangle.left;
+                        height = rectangle.bottom - rectangle.top;
+                        if (width > 0 && height > 0)
+                            NativeMethods.SetWindowPos(popup, NativeMethods.HwndTopmost,
+                                targetBounds.Right - width - 8,
+                                targetBounds.Top + topBarHeight + 6,
+                                width, height, NativeMethods.SwpNoActivate);
+                    }
 
                     // A abertura por teclado é a única API estável oferecida
                     // pelo shell. Ocultamos o indicador de foco do primeiro
@@ -2538,6 +2569,7 @@ namespace Orla
                     // mouse, sem parecer que um aplicativo foi selecionado.
                     NativeMethods.SendMessage(popup, NativeMethods.WmChangeUiState,
                         new IntPtr(NativeMethods.UisSet | (NativeMethods.UisfHideFocus << 16)), IntPtr.Zero);
+                    NativeMethods.ShowWindowAsync(popup, NativeMethods.SwShow);
 
                     uint popupProcessId;
                     uint popupThread = NativeMethods.GetWindowThreadProcessId(popup, out popupProcessId);
@@ -2547,20 +2579,8 @@ namespace Orla
                     try { NativeMethods.SetFocus(popup); }
                     finally { if (attached) NativeMethods.AttachThreadInput(currentThread, popupThread, false); }
 
-                    NativeMethods.Rect rectangle;
-                    if (NativeMethods.GetWindowRect(popup, out rectangle))
+                    if (width > 0 && height > 0)
                     {
-                        Forms.Screen screen = Forms.Screen.AllScreens.FirstOrDefault(delegate(Forms.Screen item)
-                        {
-                            return string.Equals(item.DeviceName, screenDeviceName, StringComparison.OrdinalIgnoreCase);
-                        }) ?? Forms.Screen.PrimaryScreen;
-                        DrawingRectangle bounds = screen.Bounds;
-                        int width = rectangle.right - rectangle.left;
-                        int height = rectangle.bottom - rectangle.top;
-                        NativeMethods.SetWindowPos(popup, NativeMethods.HwndTopmost,
-                            bounds.Right - width - 8, bounds.Top + topBarHeight + 6,
-                            width, height, NativeMethods.SwpNoActivate | NativeMethods.SwpShowWindow);
-
                         // O flyout XAML insiste em desenhar foco no primeiro
                         // ícone quando foi aberto via Win+B. Um clique sintético
                         // no padding inferior pertence ao próprio contêiner e
@@ -2574,8 +2594,25 @@ namespace Orla
                             IntPtr.Zero, neutralPoint);
                     }
 
+                    if (Volatile.Read(ref _trayOverflowCloseRequested) != 0)
+                    {
+                        CloseTrayOverflowWindow(popup);
+                        return;
+                    }
+
                     RaiseTrayOverflowState(true);
-                    while (NativeMethods.IsWindowVisible(popup)) Thread.Sleep(120);
+                    while (NativeMethods.IsWindowVisible(popup))
+                    {
+                        if (Volatile.Read(ref _trayOverflowCloseRequested) != 0)
+                        {
+                            CloseTrayOverflowWindow(popup);
+                            Thread.Sleep(90);
+                            if (NativeMethods.IsWindowVisible(popup))
+                                NativeMethods.ShowWindowAsync(popup, NativeMethods.SwHide);
+                            break;
+                        }
+                        Thread.Sleep(80);
+                    }
                 }
                 catch (Exception exception)
                 {
@@ -2584,14 +2621,36 @@ namespace Orla
                 finally
                 {
                     RaiseTrayOverflowState(false);
+                    Volatile.Write(ref _trayOverflowCloseRequested, 0);
                     Interlocked.Exchange(ref _trayOverflowOperation, 0);
                     TaskbarController.HideAll(false);
                 }
             });
         }
 
+        private static void CloseTrayOverflowWindow(IntPtr popup)
+        {
+            if (popup == IntPtr.Zero || !NativeMethods.IsWindow(popup)) return;
+            NativeMethods.PostMessage(popup, NativeMethods.WmClose, IntPtr.Zero, IntPtr.Zero);
+            NativeMethods.Input[] escape =
+            {
+                CreateInjectedKey(NativeMethods.VkEscape, false),
+                CreateInjectedKey(NativeMethods.VkEscape, true)
+            };
+            NativeMethods.SendInput((uint)escape.Length, escape,
+                Marshal.SizeOf(typeof(NativeMethods.Input)));
+        }
+
         private static void RaiseTrayOverflowState(bool isOpen)
         {
+            if (isOpen)
+            {
+                Volatile.Write(ref _trayOverflowKnownOpen, 1);
+            }
+            else if (Interlocked.Exchange(ref _trayOverflowKnownOpen, 0) != 0)
+            {
+                Volatile.Write(ref _trayOverflowLastClosedTick, Environment.TickCount);
+            }
             Action<bool> handler = TrayOverflowStateChanged;
             if (handler == null) return;
             try { handler(isOpen); }
@@ -3027,6 +3086,7 @@ namespace Orla
         internal const uint VkRwin = 0x5C;
         internal const ushort VkB = 0x42;
         internal const ushort VkReturn = 0x0D;
+        internal const ushort VkEscape = 0x1B;
         internal const uint LlkhfInjected = 0x10;
         internal const uint InputKeyboard = 1;
         internal const uint KeyeventfKeyup = 0x0002;
