@@ -14,7 +14,7 @@ Orla é um único executável WPF/.NET Framework x64, sem pacotes externos, serv
 - `ShellSettings`: INI simples no perfil do usuário, com migração da instalação anterior.
 - `SystemStatusMonitor`: uma fonte compartilhada de rede, áudio, bateria e Bluetooth para todas as topbars.
 - `QuickPanelWindow`: flyout transitório, criado somente quando aberto e totalmente descartado ao fechar.
-- `Loc`: seleciona português, inglês ou espanhol pela lista de idiomas do perfil do Windows, com fallback em inglês.
+- `Loc`: seleciona português, inglês ou espanhol pelo idioma de exibição do Windows, com fallback em inglês; data e hora usam independentemente o formato regional do usuário.
 
 ## Inicialização do usuário
 
@@ -36,7 +36,7 @@ Topbars opacas e docks transparentes usam renderização por software para mante
 
 O áudio usa `IAudioEndpointVolume` e seu callback nativo. A rede usa `NetworkChange`; quando a interface ativa é Wi-Fi, o RSSI vem de `WlanQueryInterface` e é convertido em uma qualidade de 0–100%. A consulta não solicita SSID, perfis salvos ou permissão de localização. Bluetooth é enumerado pelas APIs Win32 e o respectivo handle sempre é fechado na mesma leitura.
 
-O painel mantém uma hierarquia visual simples: cartões de largura uniforme, título e estado em duas linhas, ícones dentro de caixas ópticas de 30×30, espaçamento constante, chevron apenas em ações navegáveis e controles WPF acessíveis por teclado/UI Automation. Rede, Bluetooth e energia encaminham para URIs `ms-settings:` específicas; volume e mute são ajustados diretamente. Topbar e painel compartilham a mesma tabela semântica de ícones vetoriais na grade 24×24; a topbar apresenta os estados em um único botão, enquanto o painel preserva a ação própria de cada cartão.
+O painel mantém uma hierarquia visual simples: cartões de largura uniforme, título e estado em duas linhas, ícones dentro de caixas ópticas de 30×30, espaçamento constante, chevron apenas em ações navegáveis e controles WPF acessíveis por teclado/UI Automation. Rede, Bluetooth e energia encaminham para URIs `ms-settings:` específicas; volume e mute são ajustados diretamente. Topbar e painel compartilham os vetores oficiais Microsoft Fluent UI System Icons na grade nativa de 20×20; a bateria usa dez níveis e um estado próprio de carregamento. A topbar apresenta os estados em um único botão com `SubtleFillColor` no hover/pressionamento, enquanto o painel preserva a ação própria de cada cartão.
 
 O dock mantém o histórico dos dois últimos aplicativos externos, ignorando suas próprias janelas e janelas auxiliares do mesmo processo. Ao minimizar o aplicativo ativo, Orla promove o aplicativo anterior e sincroniza imediatamente os indicadores dos dois monitores. Antes de ativar um app, resolve novamente seus HWNDs para não usar uma janela substituída desde o último refresh; uma recusa temporária de foco do Windows recebe tentativas curtas e limitadas.
 

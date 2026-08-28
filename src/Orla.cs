@@ -28,8 +28,8 @@ using WpfEllipse = System.Windows.Shapes.Ellipse;
 [assembly: AssemblyCompany("Orla contributors")]
 [assembly: AssemblyProduct("Orla")]
 [assembly: AssemblyCopyright("MIT License")]
-[assembly: AssemblyVersion("1.2.2.0")]
-[assembly: AssemblyFileVersion("1.2.2.0")]
+[assembly: AssemblyVersion("1.2.3.0")]
+[assembly: AssemblyFileVersion("1.2.3.0")]
 
 namespace Orla
 {
@@ -1144,28 +1144,29 @@ namespace Orla
                 Orientation = Orientation.Horizontal,
                 VerticalAlignment = VerticalAlignment.Center
             };
+            const double statusCellWidth = 28;
             _network = Ui.Vector(OrlaIcon.WifiMedium, Loc.NetworkAndInternet, 19);
             System.Windows.Controls.ToolTipService.SetToolTip(_network, null);
-            Grid networkSlot = new Grid { Width = 25, Height = 25 };
+            Grid networkSlot = new Grid { Width = statusCellWidth, Height = 25 };
             networkSlot.Children.Add(_network);
             indicators.Children.Add(networkSlot);
 
-            _volume = Ui.Vector(OrlaIcon.VolumeHigh, Loc.Sound, 17);
+            _volume = Ui.Vector(OrlaIcon.VolumeHigh, Loc.Sound, 18);
             System.Windows.Controls.ToolTipService.SetToolTip(_volume, null);
-            Grid volumeSlot = new Grid { Width = 25, Height = 25 };
+            Grid volumeSlot = new Grid { Width = statusCellWidth, Height = 25 };
             volumeSlot.Children.Add(_volume);
             indicators.Children.Add(volumeSlot);
 
             Grid batteryPanel = new Grid
             {
                 VerticalAlignment = VerticalAlignment.Center,
-                Width = 52,
+                Width = 60,
                 Height = 20
             };
-            batteryPanel.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(20) });
+            batteryPanel.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(statusCellWidth) });
             batteryPanel.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(3) });
             batteryPanel.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(29) });
-            _batteryGlyph = Ui.Vector(OrlaIcon.Battery, Loc.PowerAndBattery, 19);
+            _batteryGlyph = Ui.Vector(OrlaIcon.Battery, Loc.PowerAndBattery, 20);
             System.Windows.Controls.ToolTipService.SetToolTip(_batteryGlyph, null);
             _batteryPercent = Ui.Text("", 10.5, FontWeights.SemiBold);
             _batteryPercent.Width = 29;
@@ -1182,9 +1183,9 @@ namespace Orla
             batteryPanel.Children.Add(_batteryPercent);
             indicators.Children.Add(batteryPanel);
 
-            _bluetooth = Ui.Vector(OrlaIcon.Bluetooth, Loc.Bluetooth, 17);
+            _bluetooth = Ui.Vector(OrlaIcon.Bluetooth, Loc.Bluetooth, 18);
             System.Windows.Controls.ToolTipService.SetToolTip(_bluetooth, null);
-            Grid bluetoothSlot = new Grid { Width = 25, Height = 25 };
+            Grid bluetoothSlot = new Grid { Width = statusCellWidth, Height = 25 };
             bluetoothSlot.Children.Add(_bluetooth);
             _bluetoothSlot = bluetoothSlot;
             indicators.Children.Add(bluetoothSlot);
@@ -1197,7 +1198,7 @@ namespace Orla
 
             VectorIcon quickGlyph = Ui.Vector(OrlaIcon.Settings, Loc.Settings, 16);
             Button quickButton = Ui.WrapButton(quickGlyph, Loc.Settings, 27, 25);
-            quickButton.Margin = new Thickness(3, 0, 0, 0);
+            quickButton.Margin = new Thickness(5, 0, 0, 0);
             Ui.EnableTopBarMotion(quickButton);
             quickButton.Click += delegate { ShellActions.OpenUri("ms-settings:"); };
             right.Children.Add(quickButton);
@@ -1219,7 +1220,12 @@ namespace Orla
 
         private void RefreshStatus()
         {
-            string clockText = DateTime.Now.ToString("ddd, d MMM  HH:mm", Loc.FormattingCulture);
+            DateTime now = DateTime.Now;
+            string monthDayPattern = Loc.FormattingCulture.DateTimeFormat.MonthDayPattern
+                .Replace("MMMM", "MMM");
+            string clockText = now.ToString("ddd", Loc.FormattingCulture) + ", "
+                + now.ToString(monthDayPattern, Loc.FormattingCulture) + "  "
+                + now.ToString("t", Loc.FormattingCulture);
             if (_clock.Text != clockText) _clock.Text = clockText;
             ApplySystemStatus(_statusMonitor.ReadSnapshot());
         }
@@ -1258,13 +1264,13 @@ namespace Orla
             BatterySnapshot battery = state.Battery;
             if (!battery.HasBattery)
             {
-                _batteryGlyph.SetBatteryState(0, false);
+                _batteryGlyph.SetBatteryState(0, false, false);
                 _batteryGlyph.Foreground = Ui.SecondaryTextBrush;
                 _batteryPercent.Text = "AC";
             }
             else
             {
-                _batteryGlyph.SetBatteryState(battery.Percent, true);
+                _batteryGlyph.SetBatteryState(battery.Percent, true, battery.IsCharging);
                 _batteryGlyph.Foreground = battery.IsCharging ? Ui.SuccessBrush
                     : battery.Percent <= 20 ? Ui.ErrorBrush : Ui.PrimaryTextBrush;
                 _batteryPercent.Text = battery.Percent.ToString(Loc.FormattingCulture) + "%";
@@ -2156,10 +2162,12 @@ namespace Orla
             ControlTemplate template = new ControlTemplate(typeof(System.Windows.Controls.Button));
             template.VisualTree = border;
             Trigger over = new Trigger { Property = UIElement.IsMouseOverProperty, Value = true };
-            over.Setters.Add(new Setter(Control.BackgroundProperty, new SolidColorBrush(Color.FromArgb(34, 255, 255, 255))));
+            // WinUI SubtleFillColorSecondary (dark): #0FFFFFFF.
+            over.Setters.Add(new Setter(Control.BackgroundProperty, new SolidColorBrush(Color.FromArgb(15, 255, 255, 255))));
             template.Triggers.Add(over);
             Trigger pressed = new Trigger { Property = System.Windows.Controls.Button.IsPressedProperty, Value = true };
-            pressed.Setters.Add(new Setter(Control.BackgroundProperty, new SolidColorBrush(Color.FromArgb(58, 10, 132, 255))));
+            // WinUI SubtleFillColorTertiary (dark): #0AFFFFFF.
+            pressed.Setters.Add(new Setter(Control.BackgroundProperty, new SolidColorBrush(Color.FromArgb(10, 255, 255, 255))));
             template.Triggers.Add(pressed);
             return template;
         }

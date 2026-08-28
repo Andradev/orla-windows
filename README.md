@@ -33,11 +33,12 @@ O projeto nasceu de uma meta simples: manter a fluidez visual de um dock moderno
 - Fluent Search opcional: `Win` isolado alterna abrir/ocultar pelo canal local da própria instância, aceita toques rápidos em ordem e posiciona no monitor em uso sem salto visível;
 - botões do Fluent Search em cada tela sempre abrem a busca naquela tela;
 - `Win+Shift+S`, `Win+E`, `Win+D` e outras combinações continuam no Windows;
-- indicadores vetoriais reais de Wi-Fi, volume, bateria e Bluetooth, sincronizados nas duas telas e reunidos em uma única área interativa;
+- indicadores oficiais Microsoft Fluent UI de Wi-Fi, volume, bateria e Bluetooth, sincronizados nas duas telas e reunidos em uma única área interativa;
 - intensidade do Wi-Fi por API nativa, com estado desconectado explícito e sem leitura de SSID;
-- painel rápido em português, inglês ou espanhol conforme o idioma configurado no Windows;
+- painel rápido em português, inglês ou espanhol conforme o idioma de exibição do Windows;
+- data, ordem dos campos e relógio de 12/24 horas seguem separadamente o formato regional configurado no Windows;
 - painel com volume e mute locais; cartões de rede, Bluetooth e energia abrem diretamente a página correspondente das Configurações do Windows;
-- ícones vetoriais consistentes para zero, baixo, alto e mudo; o próprio ícone de som no painel também alterna mute;
+- ícones vetoriais de 20 px consistentes para sinal, volume e níveis de bateria; o próprio ícone de som no painel também alterna mute;
 - Bluetooth permanece configurável no painel quando desligado e só ocupa espaço na topbar quando está habilitado;
 - restauração explícita da barra nativa ao sair, desinstalar ou usar `--restore`.
 
@@ -95,7 +96,7 @@ Instalações antigas do VictorShell são migradas automaticamente: configuraç�
 | Borda inferior | Revela o dock daquele monitor |
 | `Win` isolado | Abre o Fluent Search no monitor do cursor |
 | Botão de busca | Abre o Fluent Search no monitor do botão |
-| Conjunto de estados na topbar | Abre o painel rápido naquela tela com um único hover/clique |
+| Conjunto de estados na topbar | Abre o painel rápido naquela tela com um único hover/clique no estilo sutil do Windows |
 | Cartão de rede, Bluetooth ou energia | Abre a configuração específica do Windows |
 
 ## Configuração

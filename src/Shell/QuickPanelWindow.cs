@@ -154,7 +154,7 @@ namespace Orla
 
             Border batteryCard = CreateCard();
             batteryCard.Margin = new Thickness(0, 9, 0, 0);
-            Grid batteryRow = CreateStatusRow(OrlaIcon.Battery, 19,
+            Grid batteryRow = CreateStatusRow(OrlaIcon.Battery, 20,
                 out _batteryGlyph, out _batteryTitle, out _batteryDetail, true, null, null);
             batteryCard.Child = batteryRow;
             Button batteryAction = CreateActionCard(batteryCard, Loc.OpenPowerSettings, delegate
@@ -452,7 +452,7 @@ namespace Orla
                 BatterySnapshot state = BatterySnapshot.Read();
                 _batteryTitle.Text = state.Status;
                 _batteryDetail.Text = state.Detail;
-                _batteryGlyph.SetBatteryState(state.Percent, state.HasBattery);
+                _batteryGlyph.SetBatteryState(state.Percent, state.HasBattery, state.IsCharging);
                 _batteryGlyph.Foreground = !state.HasBattery ? Ui.SecondaryTextBrush
                     : state.IsCharging ? Ui.SuccessBrush
                     : state.Percent <= 20 ? Ui.ErrorBrush : Ui.PrimaryTextBrush;

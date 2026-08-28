@@ -9,27 +9,45 @@ namespace Orla
     internal static class Loc
     {
         private static readonly CultureInfo InterfaceCulture = ResolveInterfaceCulture();
+        private static readonly CultureInfo RegionalCulture = ResolveRegionalCulture();
         private static readonly string Language = InterfaceCulture.TwoLetterISOLanguageName;
 
-        internal static CultureInfo FormattingCulture { get { return InterfaceCulture; } }
+        internal static CultureInfo FormattingCulture { get { return RegionalCulture; } }
         internal static string LanguageName { get { return Language; } }
 
         private static CultureInfo ResolveInterfaceCulture()
         {
-            // CurrentUICulture pode herdar en-US quando o processo é iniciado
-            // por WSL ou por uma ferramenta de automação. A lista Languages é
-            // a preferência real definida em Idioma e região no Windows.
+            // PreferredUILanguages é o "Idioma de exibição do Windows". A
+            // lista de idiomas do perfil também contém layouts de teclado e
+            // não deve decidir sozinha o idioma da interface do Orla.
             try
             {
-                using (RegistryKey profile = Registry.CurrentUser.OpenSubKey(@"Control Panel\International\User Profile"))
+                using (RegistryKey desktop = Registry.CurrentUser.OpenSubKey(@"Control Panel\Desktop"))
                 {
-                    string[] languages = profile == null ? null : profile.GetValue("Languages") as string[];
+                    string[] languages = desktop == null ? null : desktop.GetValue("PreferredUILanguages") as string[];
                     if (languages != null && languages.Length > 0 && !string.IsNullOrWhiteSpace(languages[0]))
                         return CultureInfo.GetCultureInfo(languages[0]);
                 }
             }
             catch { }
             return CultureInfo.CurrentUICulture ?? CultureInfo.GetCultureInfo("en-US");
+        }
+
+        private static CultureInfo ResolveRegionalCulture()
+        {
+            // LocaleName corresponde a Região > Formato regional e preserva
+            // ordem de data, nomes, separadores e relógio de 12/24 horas.
+            try
+            {
+                using (RegistryKey international = Registry.CurrentUser.OpenSubKey(@"Control Panel\International"))
+                {
+                    string localeName = international == null ? null : international.GetValue("LocaleName") as string;
+                    if (!string.IsNullOrWhiteSpace(localeName))
+                        return CultureInfo.GetCultureInfo(localeName);
+                }
+            }
+            catch { }
+            return CultureInfo.CurrentCulture ?? InterfaceCulture;
         }
 
         private static string T(string portuguese, string english, string spanish)
