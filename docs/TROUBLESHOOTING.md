@@ -27,9 +27,22 @@ Encoste o mouse na última linha de pixels da borda inferior do monitor. O dock 
 
 ## Wi-Fi, Bluetooth ou bateria mostram um estado inesperado
 
-Os indicadores refletem as APIs do Windows e podem levar até 10 segundos para acompanhar uma mudança. Abra o painel pelo ícone de rede, som ou bateria. O Bluetooth continua listado ali mesmo quando está desligado; clique no cartão para abrir diretamente sua página nas Configurações do Windows.
+Os indicadores refletem as APIs do Windows e podem levar até 10 segundos para acompanhar uma mudança externa. Abra o painel pelo ícone de rede, som ou bateria. O Bluetooth continua listado ali mesmo quando está desligado. Clique no corpo do cartão para alternar o rádio; use somente o chevron à direita para abrir sua página nas Configurações do Windows.
+
+Na primeira alternância, o Windows pode solicitar acesso aos rádios. Se uma política corporativa negar `Windows.Devices.Radios`, o cartão permanece no estado confirmado pela releitura e as Configurações continuam disponíveis pelo chevron. Orla não altera a política.
 
 O Wi-Fi mostra intensidade sem ler o nome da rede. Se não houver conexão ativa, o ícone e o texto mudam para o estado desconectado. Computadores sem bateria informada pelo firmware mostram alimentação externa.
+
+## O brilho funciona no notebook, mas não no monitor externo
+
+O monitor externo precisa oferecer DDC/CI e permitir esse comando no modo de imagem atual. No menu físico do monitor:
+
+1. habilite DDC/CI, quando houver essa opção;
+2. desative **Eye Saver Mode** e modos equivalentes de proteção ocular;
+3. desative economia de energia automática e contraste dinâmico;
+4. use um modo de imagem padrão ou personalizado e abra novamente os controles da Orla.
+
+Alguns monitores anunciam suporte DDC/CI mesmo quando um desses modos bloqueia temporariamente a alteração. A tela integrada do notebook usa a interface WMI do Windows e não depende dessas opções do monitor externo.
 
 ## Alterei o INI e nada mudou
 

@@ -63,6 +63,7 @@ namespace Orla
         internal static string OpenFluentSearchHint { get { return T("Abrir Fluent Search — toque na tecla Windows", "Open Fluent Search — tap the Windows key", "Abrir Fluent Search — pulsa la tecla Windows"); } }
         internal static string DateAndTime { get { return T("Data e hora", "Date and time", "Fecha y hora"); } }
         internal static string NetworkAndInternet { get { return T("Rede e Internet", "Network and Internet", "Red e Internet"); } }
+        internal static string Wifi { get { return "Wi-Fi"; } }
         internal static string Sound { get { return T("Som", "Sound", "Sonido"); } }
         internal static string PowerAndBattery { get { return T("Energia e bateria", "Power and battery", "Energía y batería"); } }
         internal static string Bluetooth { get { return "Bluetooth"; } }
@@ -76,6 +77,7 @@ namespace Orla
         internal static string CloseAllWindows { get { return T("Fechar todas as janelas", "Close all windows", "Cerrar todas las ventanas"); } }
         internal static string CloseWindow { get { return T("Fechar janela", "Close window", "Cerrar ventana"); } }
         internal static string ShowDesktop { get { return T("Mostrar área de trabalho", "Show desktop", "Mostrar escritorio"); } }
+        internal static string RecycleBin { get { return T("Lixeira", "Recycle Bin", "Papelera de reciclaje"); } }
         internal static string RestoreTaskbarAndExit { get { return T("Restaurar barra do Windows e sair", "Restore Windows taskbar and exit", "Restaurar la barra de Windows y salir"); } }
 
         internal static string QuickPanelTitle { get { return T("Controles rápidos da Orla", "Orla quick controls", "Controles rápidos de Orla"); } }
@@ -84,6 +86,32 @@ namespace Orla
         internal static string Close { get { return T("Fechar", "Close", "Cerrar"); } }
         internal static string CloseControls { get { return T("Fechar controles", "Close controls", "Cerrar controles"); } }
         internal static string Volume { get { return T("Volume", "Volume", "Volumen"); } }
+        internal static string Brightness { get { return T("Brilho", "Brightness", "Brillo"); } }
+        internal static string EnergySaver { get { return T("Economia de energia", "Energy saver", "Ahorro de energía"); } }
+        internal static string NightLight { get { return T("Luz noturna", "Night light", "Luz nocturna"); } }
+        internal static string OpenEnergySaverSettings { get { return T("Abrir configurações de economia de energia", "Open energy saver settings", "Abrir configuración de ahorro de energía"); } }
+        internal static string OpenNightLightSettings { get { return T("Abrir configurações de luz noturna", "Open night light settings", "Abrir configuración de luz nocturna"); } }
+        internal static string HiddenTrayIcons { get { return T("Mostrar ícones ocultos", "Show hidden icons", "Mostrar iconos ocultos"); } }
+        internal static string CheckingMonitorSupport { get { return T("Verificando suporte dos monitores…", "Checking monitor support…", "Comprobando compatibilidad de monitores…"); } }
+        internal static string DdcUnavailable { get { return T("Nenhum monitor oferece controle DDC/CI", "No monitor offers DDC/CI control", "Ningún monitor ofrece control DDC/CI"); } }
+        internal static string BrightnessTargets(int integrated, int ddc)
+        {
+            if (Language == "pt")
+            {
+                if (integrated > 0 && ddc > 0) return "Notebook + " + ddc.ToString(FormattingCulture) + " DDC/CI detectado" + (ddc == 1 ? "" : "s");
+                if (integrated > 0) return "Tela integrada do notebook";
+                return ddc.ToString(FormattingCulture) + " monitor" + (ddc == 1 ? "" : "es") + " DDC/CI detectado" + (ddc == 1 ? "" : "s");
+            }
+            if (Language == "es")
+            {
+                if (integrated > 0 && ddc > 0) return "Portátil + " + ddc.ToString(FormattingCulture) + " DDC/CI detectado" + (ddc == 1 ? "" : "s");
+                if (integrated > 0) return "Pantalla integrada del portátil";
+                return ddc.ToString(FormattingCulture) + " monitor" + (ddc == 1 ? "" : "es") + " DDC/CI detectado" + (ddc == 1 ? "" : "s");
+            }
+            if (integrated > 0 && ddc > 0) return "Laptop + " + ddc.ToString(FormattingCulture) + " DDC/CI detected";
+            if (integrated > 0) return "Built-in laptop display";
+            return ddc.ToString(FormattingCulture) + " DDC/CI monitor" + (ddc == 1 ? "" : "s") + " detected";
+        }
         internal static string MasterVolume { get { return T("Volume principal", "Master volume", "Volumen principal"); } }
         internal static string Mute { get { return T("Silenciar", "Mute", "Silenciar"); } }
         internal static string ToggleMute { get { return T("Alternar mute", "Toggle mute", "Alternar silencio"); } }
@@ -92,6 +120,8 @@ namespace Orla
         internal static string OpenWindowsSettings { get { return T("Abrir configurações do Windows", "Open Windows settings", "Abrir configuración de Windows"); } }
         internal static string OpenNetworkSettings { get { return T("Abrir configurações de rede", "Open network settings", "Abrir configuración de red"); } }
         internal static string OpenBluetoothSettings { get { return T("Abrir configurações de Bluetooth", "Open Bluetooth settings", "Abrir configuración de Bluetooth"); } }
+        internal static string ToggleWifi { get { return T("Ativar ou desativar Wi-Fi", "Turn Wi-Fi on or off", "Activar o desactivar Wi-Fi"); } }
+        internal static string ToggleBluetooth { get { return T("Ativar ou desativar Bluetooth", "Turn Bluetooth on or off", "Activar o desactivar Bluetooth"); } }
         internal static string OpenPowerSettings { get { return T("Abrir configurações de energia", "Open power settings", "Abrir configuración de energía"); } }
         internal static string Status { get { return T("Estado", "Status", "Estado"); } }
 

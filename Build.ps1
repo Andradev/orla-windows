@@ -35,6 +35,7 @@ $arguments = @(
     "/reference:`"$(Join-Path $framework 'System.Drawing.dll')`"",
     "/reference:`"$(Join-Path $framework 'System.dll')`"",
     "/reference:`"$(Join-Path $framework 'System.Core.dll')`""
+    "/reference:`"$(Join-Path $framework 'System.Management.dll')`""
 )
 $arguments += @($sources | ForEach-Object { "`"$($_.FullName)`"" })
 

@@ -7,3 +7,4 @@ settings.ini
 .idea/
 bin/
 obj/
+.codex-build/

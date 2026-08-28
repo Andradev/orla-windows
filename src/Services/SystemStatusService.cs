@@ -298,6 +298,16 @@ namespace Orla
             lock (_sync) return _snapshot;
         }
 
+        internal void SetVolumePercent(double value)
+        {
+            _audio.SetVolumePercent(value);
+        }
+
+        internal void ToggleMute()
+        {
+            _audio.ToggleMute();
+        }
+
         private void OnAudioStateChanged(object sender, AudioStateChangedEventArgs state)
         {
             lock (_sync)

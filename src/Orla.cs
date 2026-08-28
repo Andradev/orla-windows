@@ -28,8 +28,8 @@ using WpfEllipse = System.Windows.Shapes.Ellipse;
 [assembly: AssemblyCompany("Orla contributors")]
 [assembly: AssemblyProduct("Orla")]
 [assembly: AssemblyCopyright("MIT License")]
-[assembly: AssemblyVersion("1.2.4.0")]
-[assembly: AssemblyFileVersion("1.2.4.0")]
+[assembly: AssemblyVersion("1.2.5.0")]
+[assembly: AssemblyFileVersion("1.2.5.0")]
 
 namespace Orla
 {
@@ -287,7 +287,7 @@ namespace Orla
                 ? foreground
                 : _lastExternalForeground;
 
-            QuickPanelWindow panel = new QuickPanelWindow(targetScreen);
+            QuickPanelWindow panel = new QuickPanelWindow(targetScreen, _statusMonitor);
             _quickPanel = panel;
             panel.Closed += delegate
             {
@@ -1087,6 +1087,7 @@ namespace Orla
         private readonly VectorIcon _bluetooth;
         private readonly FrameworkElement _bluetoothSlot;
         private readonly Button _statusButton;
+        private readonly RotateTransform _trayOverflowRotation;
         private readonly DispatcherTimer _timer;
 
         internal TopBarWindow(ShellSettings settings, ShellController controller,
@@ -1190,6 +1191,19 @@ namespace Orla
             _bluetoothSlot = bluetoothSlot;
             indicators.Children.Add(bluetoothSlot);
 
+            VectorIcon trayOverflowGlyph = Ui.Vector(OrlaIcon.ChevronUp, Loc.HiddenTrayIcons, 13);
+            _trayOverflowRotation = new RotateTransform(0);
+            trayOverflowGlyph.RenderTransform = _trayOverflowRotation;
+            trayOverflowGlyph.RenderTransformOrigin = new Point(0.5, 0.5);
+            Button trayOverflowButton = Ui.WrapButton(trayOverflowGlyph, Loc.HiddenTrayIcons, 25, 25);
+            trayOverflowButton.Margin = new Thickness(0, 0, 3, 0);
+            Ui.EnableTopBarMotion(trayOverflowButton);
+            trayOverflowButton.Click += delegate
+            {
+                ShellActions.ToggleTrayOverflow(ScreenDeviceName, _settings.TopBarHeight);
+            };
+            right.Children.Add(trayOverflowButton);
+
             _statusButton = Ui.WrapButton(indicators, Loc.QuickPanelTitle, double.NaN, 25);
             _statusButton.Padding = new Thickness(3, 0, 3, 0);
             Ui.EnableTopBarMotion(_statusButton);
@@ -1215,7 +1229,26 @@ namespace Orla
             _timer.Tick += delegate { RefreshStatus(); };
             _timer.Start();
             _statusMonitor.StateChanged += OnSystemStatusChanged;
+            ShellActions.TrayOverflowStateChanged += OnTrayOverflowStateChanged;
             RefreshStatus();
+        }
+
+        private void OnTrayOverflowStateChanged(bool isOpen)
+        {
+            Dispatcher.BeginInvoke(new Action(delegate
+            {
+                double angle = isOpen ? 180 : 0;
+                if (!SystemParameters.ClientAreaAnimation)
+                {
+                    _trayOverflowRotation.Angle = angle;
+                    return;
+                }
+                CubicEase easing = new CubicEase { EasingMode = EasingMode.EaseOut };
+                DoubleAnimation animation = new DoubleAnimation(angle,
+                    TimeSpan.FromMilliseconds(135)) { EasingFunction = easing };
+                _trayOverflowRotation.BeginAnimation(RotateTransform.AngleProperty, animation,
+                    HandoffBehavior.SnapshotAndReplace);
+            }), DispatcherPriority.Background);
         }
 
         private void RefreshStatus()
@@ -1307,6 +1340,7 @@ namespace Orla
         {
             _timer.Stop();
             _statusMonitor.StateChanged -= OnSystemStatusChanged;
+            ShellActions.TrayOverflowStateChanged -= OnTrayOverflowStateChanged;
             base.Dispose();
         }
     }
@@ -1335,6 +1369,8 @@ namespace Orla
         private DateTime _showRequestedAt = DateTime.MinValue;
         private DateTime _lastOverlapCheckAt = DateTime.MinValue;
         private bool _cachedOverlap;
+        private bool _recycleBinStateInitialized;
+        private bool _recycleBinFull;
         private System.Windows.Point _dragStart;
         private DateTime _dragPressedAt = DateTime.MinValue;
 
@@ -1567,8 +1603,10 @@ namespace Orla
             List<WindowItem> windows = WindowCatalog.GetVisibleWindows();
             IntPtr foreground = NativeMethods.GetForegroundWindow();
             RecordExternalForeground(foreground);
+            bool recycleBinFull = ShellActions.IsRecycleBinFull();
+            bool recycleBinChanged = !_recycleBinStateInitialized || recycleBinFull != _recycleBinFull;
             Dictionary<IntPtr, string> snapshot = windows.ToDictionary(delegate(WindowItem item) { return item.Handle; }, delegate(WindowItem item) { return item.Title; });
-            if (foreground == _lastForeground && snapshot.Count == _lastWindows.Count && snapshot.All(delegate(KeyValuePair<IntPtr, string> pair)
+            if (!recycleBinChanged && foreground == _lastForeground && snapshot.Count == _lastWindows.Count && snapshot.All(delegate(KeyValuePair<IntPtr, string> pair)
             {
                 string oldTitle;
                 return _lastWindows.TryGetValue(pair.Key, out oldTitle) && oldTitle == pair.Value;
@@ -1578,6 +1616,8 @@ namespace Orla
             }
 
             _lastForeground = foreground;
+            _recycleBinStateInitialized = true;
+            _recycleBinFull = recycleBinFull;
             _lastWindows.Clear();
             foreach (KeyValuePair<IntPtr, string> pair in snapshot) _lastWindows[pair.Key] = pair.Value;
 
@@ -1655,6 +1695,8 @@ namespace Orla
             _currentApplicationKeys = applications.Select(delegate(DockApplication app) { return app.Key; }).ToList();
             foreach (DockApplication app in applications)
                 _items.Children.Add(CreateApplicationButton(app.Name, app.Path, app.Key, app.Windows, app.Pinned));
+            _items.Children.Add(CreateGroupSpacer());
+            _items.Children.Add(CreateRecycleBinButton(recycleBinFull));
             Dispatcher.BeginInvoke(new Action(Reposition), DispatcherPriority.Loaded);
         }
 
@@ -1865,6 +1907,19 @@ namespace Orla
             Ui.EnableDockMotion(button);
             button.Margin = new Thickness(2, 0, 2, 0);
             button.Click += delegate { ShellActions.ShowDesktop(); };
+            return button;
+        }
+
+        private UIElement CreateRecycleBinButton(bool full)
+        {
+            FrameworkElement icon = Ui.TryCreateStockIcon(
+                full ? NativeMethods.SiidRecyclerFull : NativeMethods.SiidRecycler, 24)
+                ?? Ui.TrashGlyph();
+            FrameworkElement content = CreateDockIcon(icon, false, false);
+            Button button = Ui.WrapButton(content, Loc.RecycleBin, 39, 39);
+            Ui.EnableDockMotion(button);
+            button.Margin = new Thickness(2, 0, 2, 0);
+            button.Click += delegate { ShellActions.OpenRecycleBin(); };
             return button;
         }
 
@@ -2093,6 +2148,9 @@ namespace Orla
 
         internal static void EnableTopBarMotion(Button button)
         {
+            // Botões de barras e flyouts usam o hover sutil do Windows 11,
+            // mantendo o realce mais forte do dock somente nos itens do dock.
+            button.Template = CreateButtonTemplate(15, 10);
             if (!SystemParameters.ClientAreaAnimation) return;
             ScaleTransform scale = new ScaleTransform(1.0, 1.0);
             button.RenderTransform = scale;
@@ -2100,9 +2158,9 @@ namespace Orla
             // No hover o conteúdo permanece imóvel; o template fornece o
             // realce de fundo. A escala existe somente como feedback de clique.
             button.MouseLeave += delegate { AnimateScale(scale, 1.0, 85); };
-            button.PreviewMouseLeftButtonDown += delegate { AnimateScale(scale, 0.97, 65); };
-            button.PreviewMouseLeftButtonUp += delegate { AnimateScale(scale, 1.0, 90); };
-            button.LostMouseCapture += delegate { AnimateScale(scale, 1.0, 90); };
+            button.PreviewMouseLeftButtonDown += delegate { AnimateScale(scale, 0.985, 40); };
+            button.PreviewMouseLeftButtonUp += delegate { AnimateScale(scale, 1.0, 55); };
+            button.LostMouseCapture += delegate { AnimateScale(scale, 1.0, 55); };
         }
 
         internal static void PlayDockBounce(Button button)
@@ -2151,7 +2209,15 @@ namespace Orla
 
         private static ControlTemplate CreateButtonTemplate()
         {
+            // O dock conserva somente sua animação de flutuação original.
+            // Topbar e flyouts optam explicitamente pelo realce sutil.
+            return CreateButtonTemplate(0, 0);
+        }
+
+        private static ControlTemplate CreateButtonTemplate(byte hoverAlpha, byte pressedAlpha)
+        {
             FrameworkElementFactory border = new FrameworkElementFactory(typeof(Border));
+            border.Name = "ButtonChrome";
             border.SetValue(Border.BackgroundProperty, new TemplateBindingExtension(System.Windows.Controls.Button.BackgroundProperty));
             border.SetValue(Border.CornerRadiusProperty, new CornerRadius(9));
             border.SetValue(Border.PaddingProperty, new TemplateBindingExtension(System.Windows.Controls.Button.PaddingProperty));
@@ -2164,12 +2230,14 @@ namespace Orla
             ControlTemplate template = new ControlTemplate(typeof(System.Windows.Controls.Button));
             template.VisualTree = border;
             Trigger over = new Trigger { Property = UIElement.IsMouseOverProperty, Value = true };
-            // WinUI ControlFillColorSecondary (dark): #15FFFFFF.
-            over.Setters.Add(new Setter(Control.BackgroundProperty, new SolidColorBrush(Color.FromArgb(21, 255, 255, 255))));
+            // Altere o chrome do template diretamente. Um Setter em
+            // Button.Background perderia para o valor local transparente.
+            over.Setters.Add(new Setter(Border.BackgroundProperty,
+                new SolidColorBrush(Color.FromArgb(hoverAlpha, 255, 255, 255)), "ButtonChrome"));
             template.Triggers.Add(over);
             Trigger pressed = new Trigger { Property = System.Windows.Controls.Button.IsPressedProperty, Value = true };
-            // WinUI ControlFillColorTertiary (dark): #08FFFFFF.
-            pressed.Setters.Add(new Setter(Control.BackgroundProperty, new SolidColorBrush(Color.FromArgb(8, 255, 255, 255))));
+            pressed.Setters.Add(new Setter(Border.BackgroundProperty,
+                new SolidColorBrush(Color.FromArgb(pressedAlpha, 255, 255, 255)), "ButtonChrome"));
             template.Triggers.Add(pressed);
             return template;
         }
@@ -2206,6 +2274,31 @@ namespace Orla
             catch
             {
                 return null;
+            }
+        }
+
+        internal static FrameworkElement TryCreateStockIcon(int stockIconId, int size)
+        {
+            NativeMethods.StockIconInfo info = new NativeMethods.StockIconInfo();
+            info.cbSize = (uint)Marshal.SizeOf(typeof(NativeMethods.StockIconInfo));
+            try
+            {
+                int result = NativeMethods.SHGetStockIconInfo(stockIconId, NativeMethods.ShgsiIcon, ref info);
+                if (result < 0 || info.hIcon == IntPtr.Zero) return null;
+                BitmapSource source = Imaging.CreateBitmapSourceFromHIcon(
+                    info.hIcon,
+                    Int32Rect.Empty,
+                    BitmapSizeOptions.FromWidthAndHeight(size, size));
+                source.Freeze();
+                return new System.Windows.Controls.Image { Source = source, Width = size, Height = size };
+            }
+            catch
+            {
+                return null;
+            }
+            finally
+            {
+                if (info.hIcon != IntPtr.Zero) NativeMethods.DestroyIcon(info.hIcon);
             }
         }
     }
@@ -2360,6 +2453,12 @@ namespace Orla
 
     internal static class ShellActions
     {
+        private static readonly object RecycleBinSync = new object();
+        private static DateTime _lastRecycleBinQueryAt = DateTime.MinValue;
+        private static bool _lastRecycleBinFull;
+        private static int _trayOverflowOperation;
+        internal static event Action<bool> TrayOverflowStateChanged;
+
         internal static void Start(string path)
         {
             if (string.IsNullOrWhiteSpace(path)) return;
@@ -2376,6 +2475,182 @@ namespace Orla
         internal static void OpenUri(string uri)
         {
             Start(uri);
+        }
+
+        internal static bool ShouldKeepTaskbarForTrayOverflow()
+        {
+            return Volatile.Read(ref _trayOverflowOperation) != 0 || IsTrayOverflowVisible();
+        }
+
+        internal static void ToggleTrayOverflow(string screenDeviceName, int topBarHeight)
+        {
+            IntPtr visiblePopup = FindTrayOverflow();
+            if (visiblePopup != IntPtr.Zero && NativeMethods.IsWindowVisible(visiblePopup))
+            {
+                RaiseTrayOverflowState(false);
+                NativeMethods.PostMessage(visiblePopup, NativeMethods.WmClose, IntPtr.Zero, IntPtr.Zero);
+                return;
+            }
+            if (Interlocked.CompareExchange(ref _trayOverflowOperation, 1, 0) != 0) return;
+            ThreadPool.QueueUserWorkItem(delegate
+            {
+                try
+                {
+                    IntPtr existing = FindTrayOverflow();
+                    if (existing != IntPtr.Zero && NativeMethods.IsWindowVisible(existing))
+                    {
+                        RaiseTrayOverflowState(false);
+                        NativeMethods.PostMessage(existing, NativeMethods.WmClose, IntPtr.Zero, IntPtr.Zero);
+                        Thread.Sleep(90);
+                        return;
+                    }
+
+                    NativeMethods.Input[] openTray =
+                    {
+                        CreateInjectedKey((ushort)NativeMethods.VkLwin, false),
+                        CreateInjectedKey(NativeMethods.VkB, false),
+                        CreateInjectedKey(NativeMethods.VkB, true),
+                        CreateInjectedKey((ushort)NativeMethods.VkLwin, true)
+                    };
+                    if (NativeMethods.SendInput((uint)openTray.Length, openTray,
+                        Marshal.SizeOf(typeof(NativeMethods.Input))) != openTray.Length) return;
+                    Thread.Sleep(150);
+                    NativeMethods.Input[] confirm =
+                    {
+                        CreateInjectedKey(NativeMethods.VkReturn, false),
+                        CreateInjectedKey(NativeMethods.VkReturn, true)
+                    };
+                    NativeMethods.SendInput((uint)confirm.Length, confirm,
+                        Marshal.SizeOf(typeof(NativeMethods.Input)));
+
+                    IntPtr popup = IntPtr.Zero;
+                    for (int attempt = 0; attempt < 30 && popup == IntPtr.Zero; attempt++)
+                    {
+                        Thread.Sleep(25);
+                        IntPtr candidate = FindTrayOverflow();
+                        if (candidate != IntPtr.Zero && NativeMethods.IsWindowVisible(candidate)) popup = candidate;
+                    }
+                    if (popup == IntPtr.Zero) return;
+
+                    // A abertura por teclado é a única API estável oferecida
+                    // pelo shell. Ocultamos o indicador de foco do primeiro
+                    // item para o flyout se comportar como uma abertura por
+                    // mouse, sem parecer que um aplicativo foi selecionado.
+                    NativeMethods.SendMessage(popup, NativeMethods.WmChangeUiState,
+                        new IntPtr(NativeMethods.UisSet | (NativeMethods.UisfHideFocus << 16)), IntPtr.Zero);
+
+                    uint popupProcessId;
+                    uint popupThread = NativeMethods.GetWindowThreadProcessId(popup, out popupProcessId);
+                    uint currentThread = NativeMethods.GetCurrentThreadId();
+                    bool attached = popupThread != 0 && popupThread != currentThread
+                        && NativeMethods.AttachThreadInput(currentThread, popupThread, true);
+                    try { NativeMethods.SetFocus(popup); }
+                    finally { if (attached) NativeMethods.AttachThreadInput(currentThread, popupThread, false); }
+
+                    NativeMethods.Rect rectangle;
+                    if (NativeMethods.GetWindowRect(popup, out rectangle))
+                    {
+                        Forms.Screen screen = Forms.Screen.AllScreens.FirstOrDefault(delegate(Forms.Screen item)
+                        {
+                            return string.Equals(item.DeviceName, screenDeviceName, StringComparison.OrdinalIgnoreCase);
+                        }) ?? Forms.Screen.PrimaryScreen;
+                        DrawingRectangle bounds = screen.Bounds;
+                        int width = rectangle.right - rectangle.left;
+                        int height = rectangle.bottom - rectangle.top;
+                        NativeMethods.SetWindowPos(popup, NativeMethods.HwndTopmost,
+                            bounds.Right - width - 8, bounds.Top + topBarHeight + 6,
+                            width, height, NativeMethods.SwpNoActivate | NativeMethods.SwpShowWindow);
+
+                        // O flyout XAML insiste em desenhar foco no primeiro
+                        // ícone quando foi aberto via Win+B. Um clique sintético
+                        // no padding inferior pertence ao próprio contêiner e
+                        // limpa essa seleção sem acionar nenhum aplicativo.
+                        int neutralX = Math.Max(1, width / 2);
+                        int neutralY = Math.Max(1, height - 3);
+                        IntPtr neutralPoint = new IntPtr((neutralY << 16) | (neutralX & 0xFFFF));
+                        NativeMethods.PostMessage(popup, NativeMethods.WmLButtonDown,
+                            new IntPtr(1), neutralPoint);
+                        NativeMethods.PostMessage(popup, NativeMethods.WmLButtonUp,
+                            IntPtr.Zero, neutralPoint);
+                    }
+
+                    RaiseTrayOverflowState(true);
+                    while (NativeMethods.IsWindowVisible(popup)) Thread.Sleep(120);
+                }
+                catch (Exception exception)
+                {
+                    Logger.Write("Falha ao abrir ícones ocultos: " + exception.Message);
+                }
+                finally
+                {
+                    RaiseTrayOverflowState(false);
+                    Interlocked.Exchange(ref _trayOverflowOperation, 0);
+                    TaskbarController.HideAll(false);
+                }
+            });
+        }
+
+        private static void RaiseTrayOverflowState(bool isOpen)
+        {
+            Action<bool> handler = TrayOverflowStateChanged;
+            if (handler == null) return;
+            try { handler(isOpen); }
+            catch (Exception exception) { Logger.Write("Falha ao atualizar chevron da bandeja: " + exception.Message); }
+        }
+
+        private static IntPtr FindTrayOverflow()
+        {
+            return NativeMethods.FindWindow("TopLevelWindowForOverflowXamlIsland", null);
+        }
+
+        private static bool IsTrayOverflowVisible()
+        {
+            IntPtr popup = FindTrayOverflow();
+            return popup != IntPtr.Zero && NativeMethods.IsWindowVisible(popup);
+        }
+
+        private static NativeMethods.Input CreateInjectedKey(ushort virtualKey, bool keyUp)
+        {
+            NativeMethods.Input input = new NativeMethods.Input();
+            input.type = NativeMethods.InputKeyboard;
+            input.union.keyboard = new NativeMethods.KeyboardInput();
+            input.union.keyboard.wVk = virtualKey;
+            input.union.keyboard.dwFlags = keyUp ? NativeMethods.KeyeventfKeyup : 0u;
+            return input;
+        }
+
+        internal static bool IsRecycleBinFull()
+        {
+            lock (RecycleBinSync)
+            {
+                if ((DateTime.UtcNow - _lastRecycleBinQueryAt).TotalMilliseconds < 1500)
+                    return _lastRecycleBinFull;
+                _lastRecycleBinQueryAt = DateTime.UtcNow;
+                try
+                {
+                    NativeMethods.QueryRecycleBinInfo info = new NativeMethods.QueryRecycleBinInfo();
+                    info.cbSize = Marshal.SizeOf(typeof(NativeMethods.QueryRecycleBinInfo));
+                    if (NativeMethods.SHQueryRecycleBin(null, ref info) >= 0)
+                        _lastRecycleBinFull = info.ItemCount > 0;
+                }
+                catch { }
+                return _lastRecycleBinFull;
+            }
+        }
+
+        internal static void OpenRecycleBin()
+        {
+            try
+            {
+                Process.Start(new ProcessStartInfo("explorer.exe", "shell:RecycleBinFolder")
+                {
+                    UseShellExecute = true
+                });
+            }
+            catch (Exception exception)
+            {
+                Logger.Write("Falha ao abrir a Lixeira: " + exception.Message);
+            }
         }
 
         internal static void ShowDesktop()
@@ -2484,6 +2759,7 @@ namespace Orla
 
         internal static void HideAll(bool writeLog)
         {
+            if (ShellActions.ShouldKeepTaskbarForTrayOverflow()) return;
             EnsureAutoHideState();
             foreach (IntPtr handle in FindTaskbars())
             {
@@ -2742,13 +3018,24 @@ namespace Orla
         internal const int WmSysKeyDown = 0x0104;
         internal const int WmSysKeyUp = 0x0105;
         internal const int WmClose = 0x0010;
+        internal const int WmChangeUiState = 0x0127;
+        internal const int WmLButtonDown = 0x0201;
+        internal const int WmLButtonUp = 0x0202;
+        internal const int UisSet = 1;
+        internal const int UisfHideFocus = 1;
         internal const uint VkLwin = 0x5B;
         internal const uint VkRwin = 0x5C;
+        internal const ushort VkB = 0x42;
+        internal const ushort VkReturn = 0x0D;
         internal const uint LlkhfInjected = 0x10;
         internal const uint InputKeyboard = 1;
         internal const uint KeyeventfKeyup = 0x0002;
         internal const uint EventSystemForeground = 0x0003;
         internal const uint WinEventOutOfContext = 0x0000;
+        internal const uint MonitorDefaultToNearest = 0x00000002;
+        internal const uint ShgsiIcon = 0x00000100;
+        internal const int SiidRecycler = 31;
+        internal const int SiidRecyclerFull = 32;
 
         [StructLayout(LayoutKind.Sequential)]
         internal struct Rect
@@ -2775,6 +3062,31 @@ namespace Orla
             internal uint uEdge;
             internal Rect rc;
             internal IntPtr lParam;
+        }
+
+        [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
+        internal struct StockIconInfo
+        {
+            internal uint cbSize;
+            internal IntPtr hIcon;
+            internal int SystemImageIndex;
+            internal int IconIndex;
+            [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 260)] internal string Path;
+        }
+
+        [StructLayout(LayoutKind.Sequential)]
+        internal struct QueryRecycleBinInfo
+        {
+            internal int cbSize;
+            internal long Size;
+            internal long ItemCount;
+        }
+
+        [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
+        internal struct PhysicalMonitor
+        {
+            internal IntPtr Handle;
+            [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 128)] internal string Description;
         }
 
         internal static AppBarData CreateAppBarData(IntPtr handle)
@@ -2846,6 +3158,35 @@ namespace Orla
         [DllImport("shell32.dll", SetLastError = true)]
         internal static extern UIntPtr SHAppBarMessage(uint message, ref AppBarData data);
 
+        [DllImport("shell32.dll", CharSet = CharSet.Unicode)]
+        internal static extern int SHGetStockIconInfo(int stockIconId, uint flags, ref StockIconInfo info);
+
+        [DllImport("shell32.dll", CharSet = CharSet.Unicode, EntryPoint = "SHQueryRecycleBinW")]
+        internal static extern int SHQueryRecycleBin(string rootPath, ref QueryRecycleBinInfo info);
+
+        [DllImport("user32.dll")]
+        internal static extern bool DestroyIcon(IntPtr icon);
+
+        [DllImport("user32.dll")]
+        internal static extern IntPtr MonitorFromPoint(ScreenPoint point, uint flags);
+
+        [DllImport("dxva2.dll", SetLastError = true)]
+        internal static extern bool GetNumberOfPhysicalMonitorsFromHMONITOR(IntPtr monitor, out uint count);
+
+        [DllImport("dxva2.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+        internal static extern bool GetPhysicalMonitorsFromHMONITOR(IntPtr monitor, uint count,
+            [Out] PhysicalMonitor[] physicalMonitors);
+
+        [DllImport("dxva2.dll", SetLastError = true)]
+        internal static extern bool DestroyPhysicalMonitors(uint count, PhysicalMonitor[] physicalMonitors);
+
+        [DllImport("dxva2.dll", SetLastError = true)]
+        internal static extern bool GetMonitorBrightness(IntPtr monitor, out uint minimum,
+            out uint current, out uint maximum);
+
+        [DllImport("dxva2.dll", SetLastError = true)]
+        internal static extern bool SetMonitorBrightness(IntPtr monitor, uint brightness);
+
         [DllImport("user32.dll", SetLastError = true)]
         internal static extern bool SetWindowPos(IntPtr handle, IntPtr insertAfter, int x, int y, int width, int height, uint flags);
 
@@ -2871,7 +3212,13 @@ namespace Orla
         internal static extern bool AttachThreadInput(uint attachThread, uint attachToThread, bool attach);
 
         [DllImport("user32.dll")]
+        internal static extern IntPtr SetFocus(IntPtr handle);
+
+        [DllImport("user32.dll")]
         internal static extern bool PostMessage(IntPtr handle, int message, IntPtr wParam, IntPtr lParam);
+
+        [DllImport("user32.dll")]
+        internal static extern IntPtr SendMessage(IntPtr handle, int message, IntPtr wParam, IntPtr lParam);
 
         [DllImport("user32.dll")]
         internal static extern bool IsWindowVisible(IntPtr handle);

@@ -29,16 +29,21 @@ O projeto nasceu de uma meta simples: manter a fluidez visual de um dock moderno
 - indicador de foco atualizado imediatamente por evento nativo do Windows;
 - ordem dos aplicativos por arrastar e soltar, sem transformar apps fechados em fixos;
 - somente o Explorador fica fixado por padrão;
+- Lixeira ao fim do dock com o ícone oficial do Windows, atualizado automaticamente entre vazia e cheia;
 - menu de contexto para janelas, nova instância, fixar, desafixar e fechar;
 - Fluent Search opcional: `Win` isolado alterna abrir/ocultar pelo canal local da própria instância, aceita toques rápidos em ordem e posiciona no monitor em uso sem salto visível;
 - botões do Fluent Search em cada tela sempre abrem a busca naquela tela;
 - `Win+Shift+S`, `Win+E`, `Win+D` e outras combinações continuam no Windows;
 - indicadores oficiais Microsoft Fluent UI de Wi-Fi, volume, bateria e Bluetooth, sincronizados nas duas telas e reunidos em uma única área interativa;
+- chevron da topbar abre e fecha os ícones ocultos nativos, acompanha o estado com animação e remove o destaque indevido do primeiro item;
 - hover dos controles mantém ícones e textos imóveis e realça apenas a superfície arredondada ao fundo;
 - intensidade do Wi-Fi por API nativa, com estado desconectado explícito e sem leitura de SSID;
 - painel rápido em português, inglês ou espanhol conforme o idioma de exibição do Windows;
 - data, ordem dos campos e relógio de 12/24 horas seguem separadamente o formato regional configurado no Windows;
-- painel com volume e mute locais; cartões de rede, Bluetooth e energia abrem diretamente a página correspondente das Configurações do Windows;
+- painel com volume, mute e um único controle de brilho para o computador; a tela integrada usa WMI e monitores externos compatíveis usam DDC/CI;
+- detecção do brilho executada em segundo plano, sem atrasar a abertura do painel;
+- Wi-Fi e Bluetooth usam cartões divididos no padrão do Windows: o corpo alterna o rádio pela API oficial e o chevron abre a configuração específica;
+- Economia de energia e Luz noturna encaminham para as páginas oficiais do Windows, sem escrita em chaves internas e instáveis do sistema;
 - ícones vetoriais de 20 px consistentes para sinal, volume e níveis de bateria; o próprio ícone de som no painel também alterna mute;
 - Bluetooth permanece configurável no painel quando desligado e só ocupa espaço na topbar quando está habilitado;
 - restauração explícita da barra nativa ao sair, desinstalar ou usar `--restore`.
@@ -94,11 +99,16 @@ Instalações antigas do VictorShell são migradas automaticamente: configuraç�
 | Clique do meio | Abre uma nova janela/instância |
 | Arrastar | Reorganiza o aplicativo nos dois docks |
 | Botão direito | Mostra ações e janelas do grupo |
+| Lixeira | Abre a Lixeira do Windows e acompanha o estado vazia/cheia |
 | Borda inferior | Revela o dock daquele monitor |
 | `Win` isolado | Abre o Fluent Search no monitor do cursor |
 | Botão de busca | Abre o Fluent Search no monitor do botão |
 | Conjunto de estados na topbar | Abre o painel rápido naquela tela com um único hover/clique no estilo sutil do Windows |
-| Cartão de rede, Bluetooth ou energia | Abre a configuração específica do Windows |
+| Chevron de ícones ocultos | Alterna o flyout nativo da bandeja e anima a direção do indicador |
+| Controle de brilho | Ajusta a tela integrada e monitores externos DDC/CI detectados |
+| Corpo do cartão Wi-Fi ou Bluetooth | Ativa/desativa o rádio pela API do Windows |
+| Chevron de Wi-Fi/Bluetooth | Abre a configuração específica do Windows |
+| Economia de energia ou Luz noturna | Abre a página oficial correspondente nas Configurações |
 
 ## Configuração
 
@@ -136,7 +146,7 @@ Recuperação direta da barra nativa:
 
 ![Arquitetura do Orla](docs/images/architecture.svg)
 
-Orla é um executável WPF/.NET Framework x64 sem pacotes externos em tempo de execução. Ele combina AppBar, enumeração de janelas, `SetWinEventHook` para foco, APIs nativas de áudio/WLAN/Bluetooth, ícones vetoriais incorporados e um hook de teclado limitado ao `Win` isolado. Veja [Arquitetura](docs/ARCHITECTURE.md) e [Solução de problemas](docs/TROUBLESHOOTING.md).
+Orla é um executável WPF/.NET Framework x64 sem pacotes externos em tempo de execução. Ele combina AppBar, enumeração de janelas, `SetWinEventHook` para foco, APIs nativas de áudio/WLAN/Bluetooth/DDC-CI, `Windows.Devices.Radios` para os toggles, WMI para o painel integrado, ícones vetoriais incorporados e um hook de teclado limitado ao `Win` isolado. Veja [Arquitetura](docs/ARCHITECTURE.md) e [Solução de problemas](docs/TROUBLESHOOTING.md).
 
 ## Build
 
@@ -151,6 +161,8 @@ O ícone do executável é gerado a partir de `docs\images\orla-mark.svg`. Para 
 ## Limitações
 
 - o painel informa a conexão ativa, mas não lista redes nem dispositivos; essas ações são encaminhadas às páginas oficiais do Windows;
+- o Windows não publica uma API segura para alternar Luz noturna ou Economia de energia sob demanda; Orla abre as páginas oficiais e não modifica o armazenamento interno `CloudStore`;
+- alguns monitores bloqueiam comandos DDC/CI em modos de imagem como Eye Saver, economia de energia ou contraste dinâmico;
 - janelas elevadas podem recusar ativação por um processo não elevado;
 - Fluent Search é um projeto separado e não é instalado automaticamente;
 - a identidade visual é inspirada em princípios gerais de clareza, hierarquia e movimento, sem afiliação com fabricantes de sistemas operacionais.
