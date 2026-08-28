@@ -23,7 +23,7 @@ O Windows impede que processos normais controlem janelas elevadas. Execute ambos
 
 ## O dock não aparece
 
-Encoste o mouse na última linha de pixels da borda inferior do monitor. O dock aparece após aproximadamente 100–500 ms, conforme o ciclo de detecção.
+Encoste o mouse na última linha de pixels da borda inferior do monitor. A detecção ocorre em até 100 ms e a transição visual termina em 160 ms.
 
 ## Wi-Fi, Bluetooth ou bateria mostram um estado inesperado
 

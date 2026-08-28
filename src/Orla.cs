@@ -28,8 +28,8 @@ using WpfEllipse = System.Windows.Shapes.Ellipse;
 [assembly: AssemblyCompany("Orla contributors")]
 [assembly: AssemblyProduct("Orla")]
 [assembly: AssemblyCopyright("MIT License")]
-[assembly: AssemblyVersion("1.2.9.0")]
-[assembly: AssemblyFileVersion("1.2.9.0")]
+[assembly: AssemblyVersion("1.2.10.0")]
+[assembly: AssemblyFileVersion("1.2.10.0")]
 
 namespace Orla
 {
@@ -655,6 +655,7 @@ namespace Orla
     internal sealed class DockIndicatorState
     {
         internal HashSet<IntPtr> Handles;
+        internal HashSet<uint> ProcessIds;
         internal WpfEllipse Indicator;
     }
 
@@ -1409,7 +1410,10 @@ namespace Orla
             _timer.Start();
 
             _autoHideTimer = new DispatcherTimer(DispatcherPriority.Background);
-            _autoHideTimer.Interval = TimeSpan.FromMilliseconds(500);
+            // GetCursorPos é barato e o cálculo de sobreposição continua em
+            // cache. 100 ms evita a espera de até um segundo que ocorria ao
+            // revelar o dock entre dois ticks de 500 ms.
+            _autoHideTimer.Interval = TimeSpan.FromMilliseconds(100);
             _autoHideTimer.Tick += delegate { UpdateAutoHide(); };
             _autoHideTimer.Start();
             RefreshDock();
@@ -1456,7 +1460,8 @@ namespace Orla
             {
                 _hideRequestedAt = DateTime.MinValue;
                 if (_showRequestedAt == DateTime.MinValue) _showRequestedAt = now;
-                if (!_hidden || (now - _showRequestedAt).TotalMilliseconds >= 100) SetHidden(false);
+                if (!_hidden || nearRevealEdge || overDock
+                    || (now - _showRequestedAt).TotalMilliseconds >= 100) SetHidden(false);
             }
         }
 
@@ -1506,7 +1511,12 @@ namespace Orla
         private IntPtr ResolvePreviousExternalForeground(List<WindowItem> currentApplicationWindows)
         {
             if (_previousExternalForeground == IntPtr.Zero) return IntPtr.Zero;
-            if (currentApplicationWindows.Any(delegate(WindowItem item) { return item.Handle == _previousExternalForeground; }))
+            uint previousProcessId = ProcessIdForWindow(_previousExternalForeground);
+            if (currentApplicationWindows.Any(delegate(WindowItem item)
+            {
+                return item.Handle == _previousExternalForeground
+                    || (previousProcessId != 0 && item.ProcessId == previousProcessId);
+            }))
                 return IntPtr.Zero;
 
             return WindowCatalog.GetVisibleWindows().Any(delegate(WindowItem item)
@@ -1519,12 +1529,37 @@ namespace Orla
 
         private void UpdateActiveIndicators(IntPtr foreground)
         {
+            uint foregroundProcessId = ProcessIdForWindow(foreground);
             foreach (DockIndicatorState state in _indicators)
             {
-                state.Indicator.Fill = state.Handles.Contains(foreground)
+                bool belongsToApplication = state.Handles.Contains(foreground)
+                    || (foregroundProcessId != 0 && state.ProcessIds.Contains(foregroundProcessId));
+                bool hasRestoredWindow = state.Handles.Any(delegate(IntPtr handle)
+                {
+                    return NativeMethods.IsWindow(handle) && !NativeMethods.IsIconic(handle);
+                });
+                state.Indicator.Fill = belongsToApplication && hasRestoredWindow
                     ? new SolidColorBrush(Color.FromRgb(10, 132, 255))
                     : new SolidColorBrush(Color.FromRgb(174, 174, 178));
             }
+        }
+
+        private static uint ProcessIdForWindow(IntPtr handle)
+        {
+            uint processId;
+            NativeMethods.GetWindowThreadProcessId(handle, out processId);
+            return processId;
+        }
+
+        private static bool IsApplicationForeground(List<WindowItem> windows, IntPtr foreground)
+        {
+            uint foregroundProcessId = ProcessIdForWindow(foreground);
+            return windows.Any(delegate(WindowItem item)
+            {
+                bool belongsToApplication = item.Handle == foreground
+                    || (foregroundProcessId != 0 && item.ProcessId == foregroundProcessId);
+                return belongsToApplication && !NativeMethods.IsIconic(item.Handle);
+            });
         }
 
         private bool AnyWindowOverlapsDock(DrawingRectangle primaryBounds)
@@ -1565,10 +1600,10 @@ namespace Orla
             _hidden = hidden;
             DrawingRectangle bounds = ResolveScreen().Bounds;
             double targetTop = hidden ? bounds.Bottom - 3 : bounds.Bottom - _settings.DockReservedHeight;
-            DoubleAnimation movement = new DoubleAnimation(targetTop, TimeSpan.FromMilliseconds(200));
+            DoubleAnimation movement = new DoubleAnimation(targetTop, TimeSpan.FromMilliseconds(160));
             movement.EasingFunction = new CubicEase { EasingMode = EasingMode.EaseInOut };
             BeginAnimation(Window.TopProperty, movement, HandoffBehavior.SnapshotAndReplace);
-            DoubleAnimation fade = new DoubleAnimation(hidden ? 0.12 : 1.0, TimeSpan.FromMilliseconds(160));
+            DoubleAnimation fade = new DoubleAnimation(hidden ? 0.12 : 1.0, TimeSpan.FromMilliseconds(130));
             BeginAnimation(Window.OpacityProperty, fade, HandoffBehavior.SnapshotAndReplace);
         }
 
@@ -1725,7 +1760,7 @@ namespace Orla
         {
             string iconPath = !string.IsNullOrWhiteSpace(path) ? path : windows.Select(delegate(WindowItem item) { return item.ExecutablePath; }).FirstOrDefault(delegate(string value) { return !string.IsNullOrWhiteSpace(value); });
             bool running = windows.Count > 0;
-            bool active = windows.Any(delegate(WindowItem item) { return item.Handle == _lastForeground; });
+            bool active = IsApplicationForeground(windows, _lastForeground);
             FrameworkElement icon = Ui.TryCreateIcon(iconPath, 24) ?? Ui.Glyph("\uE8A7", name);
             FrameworkElement content = CreateDockIcon(icon, running, active);
             Grid iconGrid = content as Grid;
@@ -1735,6 +1770,7 @@ namespace Orla
                 _indicators.Add(new DockIndicatorState
                 {
                     Handles = new HashSet<IntPtr>(windows.Select(delegate(WindowItem item) { return item.Handle; })),
+                    ProcessIds = new HashSet<uint>(windows.Select(delegate(WindowItem item) { return item.ProcessId; })),
                     Indicator = indicator
                 });
             }
@@ -1758,13 +1794,27 @@ namespace Orla
                     return;
                 }
                 IntPtr foreground = NativeMethods.GetForegroundWindow();
+                uint foregroundProcessId = ProcessIdForWindow(foreground);
+                // WS_EX_NOACTIVATE normalmente preserva o app anterior, mas o
+                // Windows pode promover a janela WPF por um instante (por
+                // exemplo via acessibilidade). Use então o último foreground
+                // externo confirmado, em vez de interpretar o clique como uma
+                // nova ativação do aplicativo já aberto.
+                if (foregroundProcessId == _currentProcessId
+                    && _lastExternalForeground != IntPtr.Zero
+                    && NativeMethods.IsWindow(_lastExternalForeground))
+                {
+                    foreground = _lastExternalForeground;
+                    foregroundProcessId = ProcessIdForWindow(foreground);
+                }
                 WindowItem focused = currentWindows.FirstOrDefault(delegate(WindowItem item) { return item.Handle == foreground; });
                 if (focused == null)
                     focused = currentWindows.FirstOrDefault(delegate(WindowItem item)
                     {
-                        return item.Handle == _lastExternalForeground && !NativeMethods.IsIconic(item.Handle);
+                        return foregroundProcessId != 0 && item.ProcessId == foregroundProcessId
+                            && !NativeMethods.IsIconic(item.Handle);
                     });
-                bool wasActive = focused != null;
+                bool wasActive = IsApplicationForeground(currentWindows, foreground);
                 IntPtr fallback = wasActive ? ResolvePreviousExternalForeground(currentWindows) : IntPtr.Zero;
                 Ui.PlayDockAction(button, wasActive);
                 ShellActions.ActivateOrMinimize((focused ?? currentWindows[0]).Handle, wasActive, fallback);
@@ -2332,6 +2382,7 @@ namespace Orla
     internal sealed class WindowItem
     {
         internal IntPtr Handle;
+        internal uint ProcessId;
         internal string Title;
         internal string ExecutablePath;
         internal string ProcessName;
@@ -2426,6 +2477,7 @@ namespace Orla
                 result.Add(new WindowItem
                 {
                     Handle = handle,
+                    ProcessId = processId,
                     Title = title,
                     ExecutablePath = path,
                     ProcessName = processName,
@@ -2961,7 +3013,14 @@ namespace Orla
 
         internal static void ActivateOrMinimize(IntPtr handle)
         {
-            ActivateOrMinimize(handle, NativeMethods.GetForegroundWindow() == handle);
+            uint targetProcessId;
+            NativeMethods.GetWindowThreadProcessId(handle, out targetProcessId);
+            IntPtr foreground = NativeMethods.GetForegroundWindow();
+            uint foregroundProcessId;
+            NativeMethods.GetWindowThreadProcessId(foreground, out foregroundProcessId);
+            ActivateOrMinimize(handle, handle != IntPtr.Zero
+                && (foreground == handle
+                    || (targetProcessId != 0 && targetProcessId == foregroundProcessId)));
         }
 
         internal static void ActivateOrMinimize(IntPtr handle, bool wasActive)
@@ -2977,10 +3036,13 @@ namespace Orla
                 // Um clique novo invalida qualquer tentativa tardia iniciada
                 // por um clique anterior.
                 Interlocked.Increment(ref _activationRequest);
-                if (fallbackHandle != IntPtr.Zero) TryActivateWindow(fallbackHandle);
+                // O pedido visual do usuário vem primeiro. A recuperação do
+                // foco anterior nunca deve atrasar o início da minimização.
                 NativeMethods.ShowWindowAsync(handle, NativeMethods.SwMinimize);
-                if (fallbackHandle != IntPtr.Zero && NativeMethods.GetForegroundWindow() != fallbackHandle)
-                    ActivateWindowWithRetry(fallbackHandle);
+                if (fallbackHandle != IntPtr.Zero)
+                {
+                    if (!TryActivateWindow(fallbackHandle)) ActivateWindowWithRetry(fallbackHandle);
+                }
                 return;
             }
 
