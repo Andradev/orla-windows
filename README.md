@@ -105,7 +105,7 @@ Instalações antigas do VictorShell são migradas automaticamente: configuraç�
 | Borda inferior | Revela o dock daquele monitor |
 | `Win` isolado | Abre o Fluent Search no monitor do cursor |
 | Botão de busca | Abre o Fluent Search no monitor do botão |
-| Conjunto de estados na topbar | Abre o painel rápido naquela tela com um único hover/clique no estilo sutil do Windows |
+| Conjunto de estados na topbar | Alterna o painel rápido naquela tela; clicar fora ou pressionar `Esc` também fecha |
 | Chevron de ícones ocultos | Alterna o flyout nativo da bandeja e anima a direção do indicador |
 | Controle de brilho | Ajusta a tela integrada e monitores externos DDC/CI detectados |
 | Corpo do cartão Wi-Fi ou Bluetooth | Ativa/desativa o rádio pela API do Windows |

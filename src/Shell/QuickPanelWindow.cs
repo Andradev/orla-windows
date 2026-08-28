@@ -85,17 +85,10 @@ namespace Orla
             StackPanel content = new StackPanel();
             _surface.Child = content;
 
-            Grid header = new Grid { Margin = new Thickness(2, 0, 0, 10) };
-            header.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-            header.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            Grid header = new Grid { Height = 30, Margin = new Thickness(2, 0, 0, 10) };
             TextBlock heading = Ui.Text(Loc.Controls, 16, FontWeights.SemiBold);
             heading.VerticalAlignment = VerticalAlignment.Center;
             header.Children.Add(heading);
-            Button close = Ui.WrapButton(Ui.Vector(OrlaIcon.Close, Loc.Close, 15), Loc.CloseControls, 30, 30);
-            Ui.EnableTopBarMotion(close);
-            close.Click += delegate { RequestClose(true); };
-            Grid.SetColumn(close, 1);
-            header.Children.Add(close);
             content.Children.Add(header);
 
             Grid quickActions = new Grid();

@@ -82,8 +82,6 @@ namespace Orla
 
         internal static string QuickPanelTitle { get { return T("Controles rápidos da Orla", "Orla quick controls", "Controles rápidos de Orla"); } }
         internal static string Controls { get { return T("Controles", "Controls", "Controles"); } }
-        internal static string Close { get { return T("Fechar", "Close", "Cerrar"); } }
-        internal static string CloseControls { get { return T("Fechar controles", "Close controls", "Cerrar controles"); } }
         internal static string Volume { get { return T("Volume", "Volume", "Volumen"); } }
         internal static string Brightness { get { return T("Brilho", "Brightness", "Brillo"); } }
         internal static string EnergySaver { get { return T("Economia de energia", "Energy saver", "Ahorro de energía"); } }
