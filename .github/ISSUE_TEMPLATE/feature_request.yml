@@ -1,0 +1,48 @@
+name: Propor uma melhoria
+description: Sugira uma melhoria pequena, leve e alinhada ao escopo do Orla.
+title: "[Melhoria]: "
+labels:
+  - enhancement
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problema de uso
+      description: Explique a necessidade sem começar pela implementação.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Solução proposta
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternativas consideradas
+  - type: dropdown
+    id: scope
+    attributes:
+      label: Área principal
+      options:
+        - Dock
+        - Topbar
+        - Painel rápido
+        - Multi-monitor
+        - Desempenho
+        - Instalação ou recuperação
+        - Documentação
+    validations:
+      required: true
+  - type: checkboxes
+    id: principles
+    attributes:
+      label: Princípios
+      options:
+        - label: A proposta preserva execução sem administrador.
+          required: true
+        - label: A proposta não exige serviço, injeção ou alteração de arquivos do Windows.
+          required: true
+        - label: A proposta considera custo de CPU e memória.
+          required: true

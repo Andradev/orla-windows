@@ -31,7 +31,7 @@ Os indicadores refletem as APIs do Windows e podem levar até 10 segundos para a
 
 Na primeira alternância, o Windows pode solicitar acesso aos rádios. Se uma política corporativa negar `Windows.Devices.Radios`, o cartão permanece no estado confirmado pela releitura e as Configurações continuam disponíveis pelo chevron. Orla não altera a política.
 
-O Wi-Fi mostra intensidade sem ler o nome da rede. Se não houver conexão ativa, o ícone e o texto mudam para o estado desconectado. Computadores sem bateria informada pelo firmware mostram alimentação externa.
+O Wi-Fi mostra intensidade e, quando permitido, o nome da conexão ativa. Se a privacidade ou uma política do Windows restringir o nome, o painel mantém somente o sinal. Sem conexão ativa, o ícone e o texto mudam para o estado desconectado. Computadores sem bateria informada pelo firmware mostram alimentação externa.
 
 ## O brilho funciona no notebook, mas não no monitor externo
 

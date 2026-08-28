@@ -8,6 +8,8 @@
   [![Release](https://img.shields.io/github/v/release/Andradev/orla-windows?display_name=tag&style=flat)](https://github.com/Andradev/orla-windows/releases)
   [![License](https://img.shields.io/badge/license-MIT-0A84FF.svg)](LICENSE)
   ![Windows](https://img.shields.io/badge/Windows-10%20%7C%2011-0A84FF.svg)
+
+  [Baixar a versão estável](https://github.com/Andradev/orla-windows/releases/latest) · [Instalar](#instalação) · [Documentação](#documentação)
 </div>
 
 ![Orla em dois monitores](docs/images/orla-hero.svg)
@@ -51,7 +53,7 @@ O projeto nasceu de uma meta simples: manter a fluidez visual de um dock moderno
 - Bluetooth permanece exclusivamente no painel, inclusive quando desligado, sem ocupar espaço na topbar;
 - restauração explícita da barra nativa ao sair, desinstalar ou usar `--restore`.
 
-![Painel rápido com estados reais](docs/images/quick-panel.png)
+![Painel rápido com estados reais](docs/images/quick-panel.svg)
 
 ## Desempenho medido
 
@@ -71,6 +73,8 @@ Teste contínuo de 10 minutos em Windows 11, Intel Iris Xe e dois monitores:
 Os resultados variam conforme GPU, escala de DPI, quantidade de monitores e aplicativos abertos. Os números acima são evidência de uma máquina real, não uma garantia universal.
 
 Como regressão da versão 1.2.0, uma execução limpa de 60 segundos no mesmo PC e com dois monitores mediu 0,746% de CPU média, 74,37 MiB de working set e 63,59 MiB privados. Mesmo com indicadores reais e callbacks de áudio, a média permaneceu abaixo de 1% de CPU e a memória caiu aproximadamente 9–10% em relação à medição curta da versão 1.1.6.
+
+Na validação interativa final da versão 1.2.10, com os dois docks respondendo e alternância física repetida entre aplicativos, a média foi de **0,661% de CPU total**, 89 MiB de working set e 68,9 MiB privados durante 20,09 segundos. Foram executados 20 cliques e cinco ciclos de minimizar/restaurar por monitor, sem falhas; a latência mediana observada foi de 93 ms e a máxima de 246 ms.
 
 ## Instalação
 
@@ -159,6 +163,13 @@ Orla é um executável WPF/.NET Framework x64 sem pacotes externos em tempo de e
 
 O resultado fica em `dist\Orla.exe`. O binário da release é intencionalmente não assinado; confira o SHA-256 publicado ou compile localmente.
 
+Para comparar o download com o arquivo `Orla.exe.sha256` da mesma release:
+
+```powershell
+(Get-FileHash .\Orla.exe -Algorithm SHA256).Hash
+Get-Content .\Orla.exe.sha256
+```
+
 O ícone do executável é gerado a partir de `docs\images\orla-mark.svg`. Para reconstruir `assets\orla.ico` após alterar o símbolo, execute `powershell -NoProfile -ExecutionPolicy Bypass -File .\tools\GenerateIcon.ps1`.
 
 ## Limitações
@@ -170,9 +181,20 @@ O ícone do executável é gerado a partir de `docs\images\orla-mark.svg`. Para 
 - Fluent Search é um projeto separado e não é instalado automaticamente;
 - a identidade visual é inspirada em princípios gerais de clareza, hierarquia e movimento, sem afiliação com fabricantes de sistemas operacionais.
 
-## Projeto
+## Segurança e privacidade
 
+Orla funciona localmente, sem telemetria, conta ou conexão de rede própria. O instalador não solicita elevação, e a restauração da barra nativa é explícita e reversível. Consulte [Privacidade](docs/PRIVACY.md) para os dados lidos e armazenados e [Segurança](SECURITY.md) para relatar uma vulnerabilidade em privado.
+
+## Documentação
+
+- [Arquitetura](docs/ARCHITECTURE.md)
+- [Testes e critérios de release](docs/TESTING.md)
+- [Solução de problemas](docs/TROUBLESHOOTING.md)
+- [Privacidade](docs/PRIVACY.md)
+- [Changelog](CHANGELOG.md)
+- [Suporte](SUPPORT.md)
 - [Contribuindo](CONTRIBUTING.md)
+- [Código de Conduta](CODE_OF_CONDUCT.md)
 - [Segurança](SECURITY.md)
 - [Licença MIT](LICENSE)
 - [Avisos de terceiros](THIRD_PARTY_NOTICES.md)

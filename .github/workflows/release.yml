@@ -1,0 +1,53 @@
+name: release
+
+on:
+  push:
+    tags:
+      - "v[0-9]+.[0-9]+.[0-9]+"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: windows-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Verify repository
+        shell: powershell
+        run: .\tools\Verify-Repository.ps1
+
+      - name: Build release artifact
+        shell: powershell
+        run: .\Build.ps1
+
+      - name: Create checksum
+        shell: powershell
+        run: |
+          $hash = (Get-FileHash -LiteralPath .\dist\Orla.exe -Algorithm SHA256).Hash
+          "$hash  Orla.exe" | Set-Content -LiteralPath .\dist\Orla.exe.sha256 -Encoding Ascii
+
+      - name: Publish GitHub release
+        shell: powershell
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $tag = $env:GITHUB_REF_NAME
+          $version = $tag.TrimStart('v')
+          $notes = ".\dist\release-notes-$tag.md"
+          if (-not (Test-Path -LiteralPath $notes)) {
+              throw "Release notes not found: $notes"
+          }
+          gh release view $tag *> $null
+          if ($LASTEXITCODE -eq 0) {
+              gh release upload $tag .\dist\Orla.exe .\dist\Orla.exe.sha256 --clobber
+          } else {
+              gh release create $tag .\dist\Orla.exe .\dist\Orla.exe.sha256 `
+                  --title "Orla $version" --notes-file $notes
+          }

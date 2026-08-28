@@ -1,0 +1,112 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="620" viewBox="0 0 1200 620" role="img" aria-labelledby="title desc">
+  <title id="title">Painel de controles rápidos do Orla</title>
+  <desc id="desc">Ilustração genérica do painel com Wi-Fi, Bluetooth, economia de energia, luz noturna, brilho e volume.</desc>
+  <defs>
+    <linearGradient id="background" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#07111f"/>
+      <stop offset="1" stop-color="#101d32"/>
+    </linearGradient>
+    <linearGradient id="accent" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#5fc3ff"/>
+      <stop offset="1" stop-color="#3d7cff"/>
+    </linearGradient>
+    <filter id="shadow" x="-30%" y="-30%" width="160%" height="160%">
+      <feDropShadow dx="0" dy="18" stdDeviation="22" flood-color="#000814" flood-opacity=".48"/>
+    </filter>
+  </defs>
+
+  <rect width="1200" height="620" rx="32" fill="url(#background)"/>
+  <circle cx="1035" cy="64" r="210" fill="#287dff" opacity=".08"/>
+  <circle cx="84" cy="570" r="190" fill="#43c5ff" opacity=".06"/>
+
+  <g transform="translate(72 78)">
+    <rect width="54" height="54" rx="17" fill="url(#accent)"/>
+    <path d="M16 28c7-8 15-12 24-12v7c-7 0-13 3-18 9l-6-4Zm8 9c4-5 9-7 16-7v7c-4 0-7 1-10 5l-6-5Z" fill="#fff"/>
+    <text x="0" y="91" fill="#f4f8ff" font-family="Segoe UI, sans-serif" font-size="36" font-weight="650">Controles rápidos</text>
+    <text x="0" y="124" fill="#9fb0c8" font-family="Segoe UI, sans-serif" font-size="17">Informação útil, ações nativas e resposta imediata.</text>
+
+    <g font-family="Segoe UI, sans-serif" font-size="15">
+      <g transform="translate(0 184)">
+        <circle cx="10" cy="10" r="10" fill="#3e9bff" opacity=".2"/>
+        <path d="M6 10.5 9 13l5-6" fill="none" stroke="#65b8ff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        <text x="32" y="15" fill="#dce8f7">APIs do próprio Windows</text>
+      </g>
+      <g transform="translate(0 229)">
+        <circle cx="10" cy="10" r="10" fill="#3e9bff" opacity=".2"/>
+        <path d="M6 10.5 9 13l5-6" fill="none" stroke="#65b8ff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        <text x="32" y="15" fill="#dce8f7">Painel leve e transitório</text>
+      </g>
+      <g transform="translate(0 274)">
+        <circle cx="10" cy="10" r="10" fill="#3e9bff" opacity=".2"/>
+        <path d="M6 10.5 9 13l5-6" fill="none" stroke="#65b8ff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        <text x="32" y="15" fill="#dce8f7">Sem telemetria ou conta obrigatória</text>
+      </g>
+    </g>
+  </g>
+
+  <g transform="translate(555 52)" filter="url(#shadow)">
+    <rect width="575" height="516" rx="28" fill="#172236" stroke="#33445d"/>
+    <text x="30" y="48" fill="#f6f9ff" font-family="Segoe UI, sans-serif" font-size="20" font-weight="650">Controles</text>
+
+    <g font-family="Segoe UI, sans-serif">
+      <g transform="translate(30 75)">
+        <rect width="247" height="82" rx="18" fill="url(#accent)"/>
+        <g transform="translate(18 20)" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round">
+          <path d="M2 14c10-9 22-9 32 0M8 21c6-6 14-6 20 0M15 28c2-2 4-2 6 0"/>
+        </g>
+        <text x="62" y="36" fill="#fff" font-size="15" font-weight="650">Wi-Fi</text>
+        <text x="62" y="58" fill="#eaf5ff" font-size="12">Conectado</text>
+        <path d="m224 36 5 5 5-5" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round"/>
+      </g>
+
+      <g transform="translate(298 75)">
+        <rect width="247" height="82" rx="18" fill="#202d43" stroke="#3b4a61"/>
+        <path d="m24 22 13 12-13 12V18l13 12-13 12" fill="none" stroke="#cbd8e8" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"/>
+        <text x="62" y="36" fill="#f2f6fc" font-size="15" font-weight="650">Bluetooth</text>
+        <text x="62" y="58" fill="#aebdd0" font-size="12">Ligado</text>
+        <path d="m224 36 5 5 5-5" fill="none" stroke="#aebdd0" stroke-width="2" stroke-linecap="round"/>
+      </g>
+
+      <g transform="translate(30 174)">
+        <rect width="247" height="82" rx="18" fill="#202d43" stroke="#3b4a61"/>
+        <path d="M19 42c0-12 8-22 25-23-1 17-8 28-21 28m0 0c4-7 9-12 17-17" fill="none" stroke="#cbd8e8" stroke-width="2.3" stroke-linecap="round"/>
+        <text x="62" y="36" fill="#f2f6fc" font-size="15" font-weight="650">Economia de energia</text>
+        <text x="62" y="58" fill="#aebdd0" font-size="12">Desligada</text>
+      </g>
+
+      <g transform="translate(298 174)">
+        <rect width="247" height="82" rx="18" fill="#203657" stroke="#3e79bc"/>
+        <path d="M37 20a18 18 0 1 0 10 31 17 17 0 0 1-10-31Z" fill="#79bdff"/>
+        <text x="62" y="36" fill="#f2f7ff" font-size="15" font-weight="650">Luz noturna</text>
+        <text x="62" y="58" fill="#bddcff" font-size="12">Ligada</text>
+      </g>
+
+      <g transform="translate(30 298)">
+        <path d="M3 19h7l9-8v24l-9-8H3Z" fill="#dbe7f6"/>
+        <path d="M25 17c4 3 4 8 0 11m5-17c8 7 8 17 0 24" fill="none" stroke="#dbe7f6" stroke-width="2.2" stroke-linecap="round"/>
+        <rect x="56" y="18" width="459" height="6" rx="3" fill="#344359"/>
+        <rect x="56" y="18" width="304" height="6" rx="3" fill="#54aaff"/>
+        <circle cx="360" cy="21" r="9" fill="#eef7ff" stroke="#54aaff" stroke-width="3"/>
+        <text x="510" y="5" fill="#9fb0c8" font-size="11" text-anchor="end">66%</text>
+      </g>
+
+      <g transform="translate(30 372)">
+        <circle cx="20" cy="21" r="8" fill="none" stroke="#dbe7f6" stroke-width="2.2"/>
+        <g stroke="#dbe7f6" stroke-width="2" stroke-linecap="round">
+          <path d="M20 4v5M20 33v5M3 21h5M32 21h5M8 9l4 4M28 29l4 4M32 9l-4 4M12 29l-4 4"/>
+        </g>
+        <rect x="56" y="18" width="459" height="6" rx="3" fill="#344359"/>
+        <rect x="56" y="18" width="368" height="6" rx="3" fill="#54aaff"/>
+        <circle cx="424" cy="21" r="9" fill="#eef7ff" stroke="#54aaff" stroke-width="3"/>
+        <text x="510" y="5" fill="#9fb0c8" font-size="11" text-anchor="end">80%</text>
+      </g>
+    </g>
+
+    <path d="M0 449h575" stroke="#33445d"/>
+    <g transform="translate(30 470)" font-family="Segoe UI, sans-serif">
+      <circle cx="14" cy="14" r="14" fill="#22324a"/>
+      <path d="M14 7v14M7 14h14" stroke="#aabbd0" stroke-width="2" stroke-linecap="round"/>
+      <text x="42" y="20" fill="#aebdd0" font-size="13">Configurações do Windows</text>
+    </g>
+  </g>
+</svg>

@@ -1,0 +1,19 @@
+cff-version: 1.2.0
+message: "If you use Orla in research or a published comparison, please cite this repository."
+title: "Orla: a lightweight multi-monitor topbar and dock for Windows"
+type: software
+authors:
+  - family-names: "Andrade"
+    given-names: "Victor Gabriel Barbosa de"
+    alias: "Andradev"
+repository-code: "https://github.com/Andradev/orla-windows"
+url: "https://github.com/Andradev/orla-windows"
+license: MIT
+version: 1.2.10
+date-released: 2026-08-28
+keywords:
+  - Windows
+  - WPF
+  - dock
+  - topbar
+  - multi-monitor

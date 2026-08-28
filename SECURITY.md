@@ -1,8 +1,14 @@
 # Segurança
 
+## Versões com suporte
+
+Somente a [release estável mais recente](https://github.com/Andradev/orla-windows/releases/latest) recebe correções de segurança. Versões anteriores devem ser atualizadas antes da investigação.
+
 ## Relatar uma vulnerabilidade
 
-Abra um Security Advisory privado no GitHub do projeto. Evite publicar detalhes exploráveis em uma issue antes da correção.
+Use o botão **Report a vulnerability** na [página de segurança do repositório](https://github.com/Andradev/orla-windows/security/advisories/new). Inclua versão, impacto, passos mínimos de reprodução e uma sugestão de mitigação, quando houver.
+
+Não publique detalhes exploráveis em issues ou discussões antes de uma correção. O mantenedor confirmará o recebimento e coordenará a divulgação pelo advisory privado; prazos dependem da gravidade e da reprodutibilidade.
 
 ## Modelo de segurança
 

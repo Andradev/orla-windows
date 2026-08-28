@@ -2,16 +2,28 @@ name: build
 
 on:
   push:
+    branches:
+      - main
   pull_request:
+    branches:
+      - main
 
 permissions:
   contents: read
 
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build:
     runs-on: windows-latest
+    timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@v6
+      - name: Verify repository
+        shell: powershell
+        run: .\tools\Verify-Repository.ps1 -SkipBuild
       - name: Build Orla
         shell: powershell
         run: .\Build.ps1
