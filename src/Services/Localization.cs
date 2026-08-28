@@ -71,8 +71,6 @@ namespace Orla
         internal static string ToggleMute { get { return T("Alternar mute", "Toggle mute", "Alternar silencio"); } }
         internal static string Unmute { get { return T("Ativar som", "Unmute", "Activar sonido"); } }
         internal static string Muted { get { return T("Mudo", "Muted", "Silenciado"); } }
-        internal static string AdvancedWindowsSettings { get { return T("Configurações avançadas do Windows", "Advanced Windows settings", "Configuración avanzada de Windows"); } }
-        internal static string OpenAdvancedSettings { get { return T("Abrir configurações avançadas", "Open advanced settings", "Abrir configuración avanzada"); } }
         internal static string OpenWindowsSettings { get { return T("Abrir configurações do Windows", "Open Windows settings", "Abrir configuración de Windows"); } }
         internal static string OpenNetworkSettings { get { return T("Abrir configurações de rede", "Open network settings", "Abrir configuración de red"); } }
         internal static string OpenBluetoothSettings { get { return T("Abrir configurações de Bluetooth", "Open Bluetooth settings", "Abrir configuración de Bluetooth"); } }

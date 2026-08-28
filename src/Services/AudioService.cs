@@ -81,6 +81,9 @@ namespace Orla
                 float scalar = (float)Math.Max(0, Math.Min(1, value / 100.0));
                 Guid context = EventContext;
                 Marshal.ThrowExceptionForHR(_endpoint.SetMasterVolumeLevelScalar(scalar, ref context));
+                bool muted;
+                Marshal.ThrowExceptionForHR(_endpoint.GetMute(out muted));
+                NativeStateChanged(scalar, muted);
             }
             catch (Exception exception)
             {
@@ -97,6 +100,9 @@ namespace Orla
                 Marshal.ThrowExceptionForHR(_endpoint.GetMute(out muted));
                 Guid context = EventContext;
                 Marshal.ThrowExceptionForHR(_endpoint.SetMute(!muted, ref context));
+                float scalar;
+                Marshal.ThrowExceptionForHR(_endpoint.GetMasterVolumeLevelScalar(out scalar));
+                NativeStateChanged(scalar, !muted);
             }
             catch (Exception exception)
             {

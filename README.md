@@ -37,6 +37,7 @@ O projeto nasceu de uma meta simples: manter a fluidez visual de um dock moderno
 - intensidade do Wi-Fi por API nativa, com estado desconectado explícito e sem leitura de SSID;
 - painel rápido em português, inglês ou espanhol conforme o idioma configurado no Windows;
 - painel com volume e mute locais; cartões de rede, Bluetooth e energia abrem diretamente a página correspondente das Configurações do Windows;
+- glifos de volume distintos para zero, baixo, médio, alto e mudo; o próprio ícone de som no painel também alterna mute;
 - Bluetooth permanece configurável no painel quando desligado e só ocupa espaço na topbar quando está habilitado;
 - restauração explícita da barra nativa ao sair, desinstalar ou usar `--restore`.
 

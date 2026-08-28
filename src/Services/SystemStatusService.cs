@@ -25,6 +25,39 @@ namespace Orla
         }
     }
 
+    // Uma única tabela de glifos mantém topbar e painel visualmente idênticos.
+    // As faixas seguem os símbolos de estado fornecidos pelo Windows.
+    internal static class StatusGlyphs
+    {
+        internal static string Network(NetworkSnapshot state)
+        {
+            if (state == null || !state.IsAvailable) return "\uEB5A";
+            if (!state.IsWifi) return "\uE839";
+            if (state.SignalQuality < 0) return "\uE701";
+            if (state.SignalQuality <= 25) return "\uE872";
+            if (state.SignalQuality <= 60) return "\uE873";
+            return "\uE874";
+        }
+
+        internal static string Volume(int percent, bool muted)
+        {
+            if (muted) return "\uE74F";
+            if (percent <= 0) return "\uE992";
+            if (percent <= 33) return "\uE993";
+            if (percent <= 66) return "\uE994";
+            return "\uE995";
+        }
+
+        internal static string Battery(BatterySnapshot state)
+        {
+            if (state == null || !state.HasBattery) return "\uE83F";
+            int level = Math.Max(0, Math.Min(9, state.Percent / 10));
+            if (state.IsCharging)
+                return state.Percent >= 95 ? "\uE83E" : ((char)(0xE85A + Math.Min(8, level))).ToString();
+            return ((char)(0xE850 + level)).ToString();
+        }
+    }
+
     // As inscrições existem apenas durante a vida do Quick Panel e são sempre
     // removidas no Dispose para não manter a janela viva por eventos estáticos.
     internal sealed class NetworkStatusService : IDisposable
@@ -299,11 +332,13 @@ namespace Orla
         private void OnSlowTimer(object state)
         {
             NetworkSnapshot network;
+            AudioStateChangedEventArgs audio;
             BatterySnapshot battery;
             BluetoothSnapshot bluetooth;
             try
             {
                 network = _network.ReadSnapshot();
+                audio = _audio.ReadState();
                 battery = BatterySnapshot.Read();
                 bluetooth = BluetoothSnapshot.Read();
             }
@@ -315,7 +350,7 @@ namespace Orla
             lock (_sync)
             {
                 if (_disposed) return;
-                _snapshot = new SystemStatusSnapshot(network, _snapshot.Audio, battery, bluetooth, _snapshot.AudioAvailable);
+                _snapshot = new SystemStatusSnapshot(network, audio, battery, bluetooth, _audio.IsAvailable);
             }
             RaiseStateChanged();
         }
