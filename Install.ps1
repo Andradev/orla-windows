@@ -1,6 +1,8 @@
 param(
     [switch]$NoStartup,
-    [switch]$DoNotStart
+    [switch]$DoNotStart,
+    [switch]$SkipBuild,
+    [string]$SourceExecutable
 )
 
 $ErrorActionPreference = 'Stop'
@@ -23,7 +25,17 @@ foreach ($restorableExe in @($installedExe, $legacyExe)) {
     }
 }
 
-& (Join-Path $PSScriptRoot 'Build.ps1')
+if (-not $SkipBuild -and [string]::IsNullOrWhiteSpace($SourceExecutable)) {
+    & (Join-Path $PSScriptRoot 'Build.ps1')
+}
+$sourceExe = if ([string]::IsNullOrWhiteSpace($SourceExecutable)) {
+    Join-Path $PSScriptRoot 'dist\Orla.exe'
+} else {
+    [IO.Path]::GetFullPath($SourceExecutable)
+}
+if (-not (Test-Path -LiteralPath $sourceExe)) {
+    throw "Executável de origem não encontrado: $sourceExe"
+}
 
 New-Item -ItemType Directory -Path $installDirectory -Force | Out-Null
 if (-not (Test-Path -LiteralPath (Join-Path $installDirectory 'settings.ini')) -and
@@ -39,8 +51,10 @@ if (Test-Path -LiteralPath $settingsPath) {
     $settingsLines = @($settingsLines | Where-Object { $_ -notlike 'FluentSearchHotkey=*' })
     [IO.File]::WriteAllLines($settingsPath, $settingsLines, [Text.Encoding]::UTF8)
 }
-Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'dist\Orla.exe') -Destination $installedExe -Force
-Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'src\Orla.cs') -Destination (Join-Path $installDirectory 'Orla.cs') -Force
+Copy-Item -LiteralPath $sourceExe -Destination $installedExe -Force
+# Versões antigas copiavam o fonte monolítico para a pasta instalada. O
+# executável não depende desse arquivo; removê-lo mantém a instalação enxuta.
+Remove-Item -LiteralPath (Join-Path $installDirectory 'Orla.cs') -Force -ErrorAction SilentlyContinue
 Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'README.md') -Destination (Join-Path $installDirectory 'README.md') -Force
 Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'LICENSE') -Destination (Join-Path $installDirectory 'LICENSE') -Force
 

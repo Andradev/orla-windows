@@ -5,7 +5,6 @@ using System.Globalization;
 using System.IO;
 using System.IO.Pipes;
 using System.Linq;
-using System.Net.NetworkInformation;
 using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Text;
@@ -29,8 +28,8 @@ using WpfEllipse = System.Windows.Shapes.Ellipse;
 [assembly: AssemblyCompany("Orla contributors")]
 [assembly: AssemblyProduct("Orla")]
 [assembly: AssemblyCopyright("MIT License")]
-[assembly: AssemblyVersion("1.1.6.0")]
-[assembly: AssemblyFileVersion("1.1.6.0")]
+[assembly: AssemblyVersion("1.2.0.0")]
+[assembly: AssemblyFileVersion("1.2.0.0")]
 
 namespace Orla
 {
@@ -129,12 +128,32 @@ namespace Orla
         private readonly ShellSettings _settings;
         private readonly List<TopBarWindow> _topBars = new List<TopBarWindow>();
         private readonly List<DockWindow> _docks = new List<DockWindow>();
+        private readonly uint _currentProcessId = (uint)Process.GetCurrentProcess().Id;
         private BareWindowsKeyHook _windowsKeyHook;
         private ForegroundWindowTracker _foregroundTracker;
+        private QuickPanelWindow _quickPanel;
+        private IntPtr _quickPanelPreviousForeground;
+        private IntPtr _lastExternalForeground;
+        private DateTime _lastQuickPanelClosedAt = DateTime.MinValue;
+        private string _lastQuickPanelClosedScreen;
         private DispatcherTimer _taskbarTimer;
         private bool _exiting;
-        private DateTime _lastFluentRequestAt = DateTime.MinValue;
-        private readonly object _fluentRequestSync = new object();
+        private readonly object _fluentQueueSync = new object();
+        private readonly Queue<FluentSearchRequest> _fluentQueue = new Queue<FluentSearchRequest>();
+        private bool _fluentWorkerRunning;
+        private SystemStatusMonitor _statusMonitor;
+
+        private sealed class FluentSearchRequest
+        {
+            internal readonly string Path;
+            internal readonly string TargetScreen;
+
+            internal FluentSearchRequest(string path, string targetScreen)
+            {
+                Path = path;
+                TargetScreen = targetScreen;
+            }
+        }
 
         internal ShellController(Application application)
         {
@@ -145,14 +164,26 @@ namespace Orla
         internal void Start()
         {
             Logger.Write("Iniciando Orla.");
+            IntPtr initialForeground = NativeMethods.GetForegroundWindow();
+            uint initialProcessId;
+            NativeMethods.GetWindowThreadProcessId(initialForeground, out initialProcessId);
+            if (initialProcessId != 0 && initialProcessId != _currentProcessId)
+                _lastExternalForeground = initialForeground;
             TaskbarController.HideAll();
 
+            _statusMonitor = new SystemStatusMonitor();
             CreateBars();
 
             _foregroundTracker = new ForegroundWindowTracker(delegate(IntPtr foreground)
             {
                 _application.Dispatcher.BeginInvoke(new Action(delegate
                 {
+                    uint processId;
+                    NativeMethods.GetWindowThreadProcessId(foreground, out processId);
+                    // Flyouts da própria Orla não apagam o título nem o indicador
+                    // do aplicativo que continuava ativo antes de abrir o painel.
+                    if (processId == _currentProcessId) return;
+                    _lastExternalForeground = foreground;
                     foreach (DockWindow dock in _docks) dock.ForegroundChanged(foreground);
                     foreach (TopBarWindow topBar in _topBars) topBar.ForegroundChanged(foreground);
                 }), DispatcherPriority.Background);
@@ -202,7 +233,7 @@ namespace Orla
 
             foreach (Forms.Screen screen in screens)
             {
-                TopBarWindow topBar = new TopBarWindow(_settings, this, screen.DeviceName);
+                TopBarWindow topBar = new TopBarWindow(_settings, this, _statusMonitor, screen.DeviceName);
                 DockWindow dock = new DockWindow(_settings, this, screen.DeviceName);
                 _topBars.Add(topBar);
                 _docks.Add(dock);
@@ -221,10 +252,74 @@ namespace Orla
 
         private void DisposeBars()
         {
+            CloseQuickPanel(false);
             foreach (DockWindow dock in _docks.ToArray()) dock.Dispose();
             foreach (TopBarWindow topBar in _topBars.ToArray()) topBar.Dispose();
             _docks.Clear();
             _topBars.Clear();
+        }
+
+        internal void ToggleQuickPanel(string targetScreenDeviceName)
+        {
+            string targetScreen = ResolveFluentTargetScreen(targetScreenDeviceName);
+            if (_quickPanel != null)
+            {
+                bool sameScreen = string.Equals(_quickPanel.ScreenDeviceName, targetScreen, StringComparison.OrdinalIgnoreCase);
+                CloseQuickPanel(sameScreen);
+                if (sameScreen) return;
+            }
+
+            // Ao clicar novamente na topbar, WPF pode entregar Deactivated ao
+            // painel alguns milissegundos antes do Click do botão. Nesse caso a
+            // janela já fechou; não a reabra na mesma ação.
+            if ((DateTime.UtcNow - _lastQuickPanelClosedAt).TotalMilliseconds < 350
+                && string.Equals(_lastQuickPanelClosedScreen, targetScreen, StringComparison.OrdinalIgnoreCase))
+            {
+                if (_lastExternalForeground != IntPtr.Zero && NativeMethods.IsWindow(_lastExternalForeground))
+                    ShellActions.ActivateWindowWithRetry(_lastExternalForeground);
+                return;
+            }
+
+            IntPtr foreground = NativeMethods.GetForegroundWindow();
+            uint processId;
+            NativeMethods.GetWindowThreadProcessId(foreground, out processId);
+            _quickPanelPreviousForeground = processId != 0 && processId != _currentProcessId
+                ? foreground
+                : _lastExternalForeground;
+
+            QuickPanelWindow panel = new QuickPanelWindow(targetScreen);
+            _quickPanel = panel;
+            panel.Closed += delegate
+            {
+                if (!ReferenceEquals(_quickPanel, panel)) return;
+                bool restore = panel.RestorePreviousFocusOnClose;
+                _lastQuickPanelClosedAt = DateTime.UtcNow;
+                _lastQuickPanelClosedScreen = panel.ScreenDeviceName;
+                _quickPanel = null;
+                RestoreQuickPanelFocus(restore);
+            };
+            panel.Show();
+            panel.Activate();
+        }
+
+        private void CloseQuickPanel(bool restorePreviousFocus)
+        {
+            QuickPanelWindow panel = _quickPanel;
+            if (panel == null) return;
+            panel.RequestClose(restorePreviousFocus);
+        }
+
+        private void RestoreQuickPanelFocus(bool requested)
+        {
+            IntPtr previous = _quickPanelPreviousForeground;
+            _quickPanelPreviousForeground = IntPtr.Zero;
+            if (!requested || previous == IntPtr.Zero || !NativeMethods.IsWindow(previous)) return;
+
+            IntPtr current = NativeMethods.GetForegroundWindow();
+            uint currentProcessId;
+            NativeMethods.GetWindowThreadProcessId(current, out currentProcessId);
+            if (current == IntPtr.Zero || currentProcessId == _currentProcessId)
+                ShellActions.ActivateWindowWithRetry(previous);
         }
 
         internal bool IsPinned(string path)
@@ -312,22 +407,41 @@ namespace Orla
                     return;
                 }
 
-                DateTime now = DateTime.UtcNow;
-                if ((now - _lastFluentRequestAt).TotalMilliseconds < 75) return;
-                _lastFluentRequestAt = now;
-
                 string targetScreen = ResolveFluentTargetScreen(targetScreenDeviceName);
                 Logger.Write("Fluent Search solicitado para " + targetScreen + ".");
-                ThreadPool.QueueUserWorkItem(delegate
+                bool startWorker = false;
+                lock (_fluentQueueSync)
                 {
-                    // Serializa sem descartar: toques rápidos alternam abrir/ocultar
-                    // na mesma ordem em que foram recebidos.
-                    lock (_fluentRequestSync) ActivateFluentSearch(path, targetScreen);
-                });
+                    _fluentQueue.Enqueue(new FluentSearchRequest(path, targetScreen));
+                    if (!_fluentWorkerRunning)
+                    {
+                        _fluentWorkerRunning = true;
+                        startWorker = true;
+                    }
+                }
+                if (startWorker) ThreadPool.QueueUserWorkItem(delegate { ProcessFluentQueue(); });
             }
             catch (Exception exception)
             {
                 Logger.Write("Falha ao abrir Fluent Search: " + exception);
+            }
+        }
+
+        private void ProcessFluentQueue()
+        {
+            while (true)
+            {
+                FluentSearchRequest request;
+                lock (_fluentQueueSync)
+                {
+                    if (_fluentQueue.Count == 0)
+                    {
+                        _fluentWorkerRunning = false;
+                        return;
+                    }
+                    request = _fluentQueue.Dequeue();
+                }
+                ActivateFluentSearch(request.Path, request.TargetScreen);
             }
         }
 
@@ -428,10 +542,29 @@ namespace Orla
                 }
                 foreach (Process process in running) process.Dispose();
 
-                bool wasVisible = WindowCatalog.FindProcessWindow("FluentSearch", "Fluent Search", true) != IntPtr.Zero;
+                IntPtr visibleWindow = WindowCatalog.FindProcessWindow("FluentSearch", "Fluent Search", true);
+                bool wasVisible = visibleWindow != IntPtr.Zero;
+                if (wasVisible)
+                {
+                    // O canal RequestOpen de algumas versões apenas reafirma a
+                    // janela quando ela já está visível. WM_CLOSE passa pelo
+                    // ciclo normal do Fluent Search: ele oculta a janela e
+                    // preserva o processo/índice, sem forçar ShowWindow.
+                    NativeMethods.PostMessage(visibleWindow, NativeMethods.WmClose, IntPtr.Zero, IntPtr.Zero);
+                    if (WaitForFluentSearchVisibility(false, 2000))
+                    {
+                        Logger.Write("Fluent Search ocultado pelo fechamento cooperativo.");
+                        return;
+                    }
+                    Logger.Write("Fluent Search não respondeu ao fechamento cooperativo; tentando o canal nativo.");
+                }
                 if (RequestFluentSearchWindow(4000, targetScreenDeviceName))
                 {
-                    bool reachedExpectedState = WaitForFluentSearchVisibility(!wasVisible, wasVisible ? 500 : 1600);
+                    // A animação de saída do Fluent mantém WS_VISIBLE por mais
+                    // de 500 ms em algumas GPUs. Espere o estado real antes de
+                    // liberar o próximo pedido da fila; assim um terceiro toque
+                    // não interpreta por engano que a busca ainda está aberta.
+                    bool reachedExpectedState = WaitForFluentSearchVisibility(!wasVisible, wasVisible ? 2000 : 2500);
                     if (reachedExpectedState)
                     {
                         Logger.Write(wasVisible
@@ -490,6 +623,11 @@ namespace Orla
             }
 
             DisposeBars();
+            if (_statusMonitor != null)
+            {
+                _statusMonitor.Dispose();
+                _statusMonitor = null;
+            }
         }
     }
 
@@ -734,7 +872,7 @@ namespace Orla
         internal static List<PinnedApplication> GetDefaultPinnedApplications()
         {
             List<PinnedApplication> result = new List<PinnedApplication>();
-            AddUnique(result, "Explorador de Arquivos", Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Windows), "explorer.exe"));
+            AddUnique(result, Loc.FileExplorer, Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Windows), "explorer.exe"));
             return result;
         }
 
@@ -934,19 +1072,27 @@ namespace Orla
     {
         private readonly ShellSettings _settings;
         private readonly ShellController _controller;
+        private readonly SystemStatusMonitor _statusMonitor;
         private readonly TextBlock _activeTitle;
         private readonly TextBlock _clock;
         private readonly TextBlock _network;
         private readonly TextBlock _volume;
-        private readonly Border _batteryFill;
+        private readonly TextBlock _batteryGlyph;
         private readonly TextBlock _batteryPercent;
+        private readonly TextBlock _bluetooth;
+        private readonly Button _networkButton;
+        private readonly Button _volumeButton;
+        private readonly Button _batteryButton;
+        private readonly Button _bluetoothButton;
         private readonly DispatcherTimer _timer;
 
-        internal TopBarWindow(ShellSettings settings, ShellController controller, string screenDeviceName)
+        internal TopBarWindow(ShellSettings settings, ShellController controller,
+            SystemStatusMonitor statusMonitor, string screenDeviceName)
             : base(NativeMethods.AbeTop, settings.TopBarHeight, false, screenDeviceName)
         {
             _settings = settings;
             _controller = controller;
+            _statusMonitor = statusMonitor;
 
             Border rootBorder = new Border();
             rootBorder.Background = new SolidColorBrush(Color.FromArgb(245, 28, 28, 31));
@@ -960,14 +1106,14 @@ namespace Orla
             grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
 
             StackPanel left = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
-            TextBlock searchGlyph = Ui.Glyph("\uE721", "Abrir Fluent Search");
+            TextBlock searchGlyph = Ui.Glyph("\uE721", Loc.OpenFluentSearch);
             searchGlyph.Foreground = new SolidColorBrush(Color.FromRgb(10, 132, 255));
-            Button search = Ui.WrapButton(searchGlyph, "Abrir Fluent Search — toque na tecla Windows", 28, 24);
+            Button search = Ui.WrapButton(searchGlyph, Loc.OpenFluentSearchHint, 28, 24);
             Ui.EnableTopBarMotion(search);
             search.Click += delegate { _controller.LaunchFluentSearch(ScreenDeviceName); };
             left.Children.Add(search);
 
-            _activeTitle = Ui.Text("Área de Trabalho", 11.5, FontWeights.SemiBold);
+            _activeTitle = Ui.Text(WindowCatalog.GetActiveWindowTitle(), 11.5, FontWeights.SemiBold);
             _activeTitle.Margin = new Thickness(5, 0, 0, 0);
             _activeTitle.MaxWidth = 360;
             _activeTitle.TextTrimming = TextTrimming.CharacterEllipsis;
@@ -977,7 +1123,7 @@ namespace Orla
 
             _clock = Ui.Text("", 11.5, FontWeights.SemiBold);
             _clock.HorizontalAlignment = HorizontalAlignment.Center;
-            Button clockButton = Ui.WrapButton(_clock, "Data e hora", 210, 25);
+            Button clockButton = Ui.WrapButton(_clock, Loc.DateAndTime, 210, 25);
             Ui.EnableTopBarMotion(clockButton);
             clockButton.Click += delegate { ShellActions.OpenUri("ms-settings:dateandtime"); };
             Grid.SetColumn(clockButton, 1);
@@ -990,62 +1136,38 @@ namespace Orla
                 VerticalAlignment = VerticalAlignment.Center
             };
 
-            _network = Ui.Glyph("\uE701", "Rede e Internet");
-            Button networkButton = Ui.WrapButton(_network, "Rede e Internet", 30, 25);
-            Ui.EnableTopBarMotion(networkButton);
-            networkButton.Click += delegate { ShellActions.OpenUri("ms-settings:network-status"); };
-            right.Children.Add(networkButton);
+            _network = Ui.Glyph("\uE701", Loc.NetworkAndInternet);
+            _networkButton = Ui.WrapButton(_network, Loc.NetworkAndInternet, 30, 25);
+            Ui.EnableTopBarMotion(_networkButton);
+            _networkButton.Click += delegate { _controller.ToggleQuickPanel(ScreenDeviceName); };
+            right.Children.Add(_networkButton);
 
-            _volume = Ui.Glyph("\uE767", "Som");
-            Button volumeButton = Ui.WrapButton(_volume, "Som", 30, 25);
-            Ui.EnableTopBarMotion(volumeButton);
-            volumeButton.Click += delegate { ShellActions.OpenUri("ms-settings:sound"); };
-            right.Children.Add(volumeButton);
+            _volume = Ui.Glyph("\uE767", Loc.Sound);
+            _volumeButton = Ui.WrapButton(_volume, Loc.Sound, 30, 25);
+            Ui.EnableTopBarMotion(_volumeButton);
+            _volumeButton.Click += delegate { _controller.ToggleQuickPanel(ScreenDeviceName); };
+            right.Children.Add(_volumeButton);
 
             StackPanel batteryPanel = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
-            Canvas batteryIcon = new Canvas { Width = 22, Height = 12, VerticalAlignment = VerticalAlignment.Center };
-            Border batteryBody = new Border
-            {
-                Width = 18,
-                Height = 10,
-                CornerRadius = new CornerRadius(2),
-                BorderThickness = new Thickness(1),
-                BorderBrush = Ui.PrimaryTextBrush
-            };
-            Canvas.SetLeft(batteryBody, 0);
-            Canvas.SetTop(batteryBody, 1);
-            batteryIcon.Children.Add(batteryBody);
-            _batteryFill = new Border
-            {
-                Width = 14,
-                Height = 6,
-                CornerRadius = new CornerRadius(1),
-                Background = Ui.PrimaryTextBrush
-            };
-            Canvas.SetLeft(_batteryFill, 2);
-            Canvas.SetTop(_batteryFill, 3);
-            batteryIcon.Children.Add(_batteryFill);
-            Border batteryTerminal = new Border
-            {
-                Width = 2,
-                Height = 5,
-                CornerRadius = new CornerRadius(0, 1, 1, 0),
-                Background = Ui.PrimaryTextBrush
-            };
-            Canvas.SetLeft(batteryTerminal, 19);
-            Canvas.SetTop(batteryTerminal, 3.5);
-            batteryIcon.Children.Add(batteryTerminal);
+            _batteryGlyph = Ui.Glyph("\uE83F", Loc.PowerAndBattery);
+            _batteryGlyph.FontSize = 16;
             _batteryPercent = Ui.Text("", 10.5, FontWeights.SemiBold);
             _batteryPercent.Margin = new Thickness(3, 0, 0, 0);
-            batteryPanel.Children.Add(batteryIcon);
+            batteryPanel.Children.Add(_batteryGlyph);
             batteryPanel.Children.Add(_batteryPercent);
-            Button batteryButton = Ui.WrapButton(batteryPanel, "Energia e bateria", 66, 25);
-            Ui.EnableTopBarMotion(batteryButton);
-            batteryButton.Click += delegate { ShellActions.OpenUri("ms-settings:powersleep"); };
-            right.Children.Add(batteryButton);
+            _batteryButton = Ui.WrapButton(batteryPanel, Loc.PowerAndBattery, 66, 25);
+            Ui.EnableTopBarMotion(_batteryButton);
+            _batteryButton.Click += delegate { _controller.ToggleQuickPanel(ScreenDeviceName); };
+            right.Children.Add(_batteryButton);
 
-            TextBlock quickGlyph = Ui.Glyph("\uE713", "Configurações");
-            Button quickButton = Ui.WrapButton(quickGlyph, "Configurações", 30, 25);
+            _bluetooth = Ui.Glyph("\uE702", Loc.Bluetooth);
+            _bluetoothButton = Ui.WrapButton(_bluetooth, Loc.Bluetooth, 30, 25);
+            Ui.EnableTopBarMotion(_bluetoothButton);
+            _bluetoothButton.Click += delegate { ShellActions.OpenUri("ms-settings:bluetooth"); };
+            right.Children.Add(_bluetoothButton);
+
+            TextBlock quickGlyph = Ui.Glyph("\uE713", Loc.Settings);
+            Button quickButton = Ui.WrapButton(quickGlyph, Loc.Settings, 30, 25);
             Ui.EnableTopBarMotion(quickButton);
             quickButton.Click += delegate { ShellActions.OpenUri("ms-settings:"); };
             right.Children.Add(quickButton);
@@ -1061,54 +1183,103 @@ namespace Orla
             _timer.Interval = TimeSpan.FromSeconds(15);
             _timer.Tick += delegate { RefreshStatus(); };
             _timer.Start();
+            _statusMonitor.StateChanged += OnSystemStatusChanged;
             RefreshStatus();
         }
 
         private void RefreshStatus()
         {
-            CultureInfo culture = CultureInfo.GetCultureInfo("pt-BR");
-            string clockText = DateTime.Now.ToString("ddd, d MMM  HH:mm", culture);
+            string clockText = DateTime.Now.ToString("ddd, d MMM  HH:mm", Loc.FormattingCulture);
             if (_clock.Text != clockText) _clock.Text = clockText;
-            string activeTitle = WindowCatalog.GetActiveWindowTitle();
-            if (_activeTitle.Text != activeTitle) _activeTitle.Text = activeTitle;
-            Brush networkBrush = NetworkInterface.GetIsNetworkAvailable() ? Ui.PrimaryTextBrush : Ui.ErrorBrush;
-            if (!ReferenceEquals(_network.Foreground, networkBrush)) _network.Foreground = networkBrush;
+            ApplySystemStatus(_statusMonitor.ReadSnapshot());
+        }
 
-            Forms.PowerStatus power = Forms.SystemInformation.PowerStatus;
-            if (power.BatteryChargeStatus == Forms.BatteryChargeStatus.NoSystemBattery)
+        private void OnSystemStatusChanged(object sender, EventArgs eventArgs)
+        {
+            Dispatcher.BeginInvoke(new Action(delegate
             {
-                if (_batteryPercent.Text != "AC") _batteryPercent.Text = "AC";
-                if (_batteryFill.Width != 14) _batteryFill.Width = 14;
-                if (!ReferenceEquals(_batteryFill.Background, Ui.SecondaryTextBrush)) _batteryFill.Background = Ui.SecondaryTextBrush;
+                if (IsVisible) ApplySystemStatus(_statusMonitor.ReadSnapshot());
+            }), DispatcherPriority.Background);
+        }
+
+        private void ApplySystemStatus(SystemStatusSnapshot state)
+        {
+            if (state == null) return;
+
+            _network.Text = NetworkGlyph(state.Network);
+            _network.Foreground = state.Network.IsAvailable ? Ui.PrimaryTextBrush : Ui.ErrorBrush;
+            SetButtonDescription(_networkButton, state.Network.Name + " • " + state.Network.Detail);
+
+            if (!state.AudioAvailable)
+            {
+                _volume.Text = "\uE74F";
+                _volume.Foreground = Ui.ErrorBrush;
+                SetButtonDescription(_volumeButton, Loc.Sound + " • " + Loc.TemporarilyUnavailable);
             }
             else
             {
-                int percent = Math.Max(0, Math.Min(100, (int)Math.Round(power.BatteryLifePercent * 100)));
-                string percentText = percent.ToString(CultureInfo.InvariantCulture) + "%";
-                if (_batteryPercent.Text != percentText) _batteryPercent.Text = percentText;
-                double fillWidth = Math.Max(1, 14 * percent / 100.0);
-                if (Math.Abs(_batteryFill.Width - fillWidth) > 0.01) _batteryFill.Width = fillWidth;
-                Brush batteryBrush;
-                if (power.PowerLineStatus == Forms.PowerLineStatus.Online)
-                    batteryBrush = Ui.SuccessBrush;
-                else if (percent <= 20)
-                    batteryBrush = Ui.ErrorBrush;
-                else
-                    batteryBrush = Ui.PrimaryTextBrush;
-                if (!ReferenceEquals(_batteryFill.Background, batteryBrush)) _batteryFill.Background = batteryBrush;
+                int volume = state.Audio.VolumePercent;
+                _volume.Text = state.Audio.IsMuted ? "\uE74F" : volume == 0 ? "\uE992"
+                    : volume <= 33 ? "\uE993" : volume <= 66 ? "\uE994" : "\uE995";
+                _volume.Foreground = state.Audio.IsMuted ? Ui.SecondaryTextBrush : Ui.PrimaryTextBrush;
+                SetButtonDescription(_volumeButton, Loc.VolumeStatus(volume, state.Audio.IsMuted));
             }
+
+            BatterySnapshot battery = state.Battery;
+            if (!battery.HasBattery)
+            {
+                _batteryGlyph.Text = "\uE83F";
+                _batteryGlyph.Foreground = Ui.SecondaryTextBrush;
+                _batteryPercent.Text = "AC";
+            }
+            else
+            {
+                int level = Math.Max(0, Math.Min(9, battery.Percent / 10));
+                if (battery.IsCharging)
+                    _batteryGlyph.Text = battery.Percent >= 95 ? "\uE83E" : ((char)(0xE85A + Math.Min(8, level))).ToString();
+                else
+                    _batteryGlyph.Text = ((char)(0xE850 + level)).ToString();
+                _batteryGlyph.Foreground = battery.IsCharging ? Ui.SuccessBrush
+                    : battery.Percent <= 20 ? Ui.ErrorBrush : Ui.PrimaryTextBrush;
+                _batteryPercent.Text = battery.Percent.ToString(Loc.FormattingCulture) + "%";
+            }
+            SetButtonDescription(_batteryButton, Loc.BatteryStatus(battery));
+
+            _bluetoothButton.Visibility = state.Bluetooth.IsEnabled ? Visibility.Visible : Visibility.Collapsed;
+            if (state.Bluetooth.IsEnabled)
+            {
+                _bluetooth.Foreground = state.Bluetooth.IsConnected ? Ui.AccentBrush : Ui.SecondaryTextBrush;
+                SetButtonDescription(_bluetoothButton, Loc.BluetoothStatus(state.Bluetooth));
+            }
+        }
+
+        private static string NetworkGlyph(NetworkSnapshot state)
+        {
+            if (!state.IsAvailable) return "\uEB5A";
+            if (!state.IsWifi) return "\uE839";
+            if (state.SignalQuality < 0) return "\uE701";
+            if (state.SignalQuality <= 25) return "\uE872";
+            if (state.SignalQuality <= 60) return "\uE873";
+            return "\uE874";
+        }
+
+        private static void SetButtonDescription(Button button, string description)
+        {
+            button.ToolTip = description;
+            System.Windows.Automation.AutomationProperties.SetName(button, description);
         }
 
         internal void ForegroundChanged(IntPtr foreground)
         {
             string title = WindowCatalog.GetWindowTitle(foreground);
-            if (string.IsNullOrWhiteSpace(title)) title = "Área de Trabalho";
+            if (string.IsNullOrWhiteSpace(title)) title = Loc.Desktop;
             if (_activeTitle.Text != title) _activeTitle.Text = title;
         }
 
         public new void Dispose()
         {
             _timer.Stop();
+            _statusMonitor.StateChanged -= OnSystemStatusChanged;
             base.Dispose();
         }
     }
@@ -1635,11 +1806,11 @@ namespace Orla
             }
             if (windows.Count > 0) menu.Items.Add(new Separator());
 
-            MenuItem openNew = new MenuItem { Header = "Abrir nova janela" };
+            MenuItem openNew = new MenuItem { Header = Loc.OpenNewWindow };
             openNew.Click += delegate { ShellActions.Start(path); };
             menu.Items.Add(openNew);
 
-            MenuItem pin = new MenuItem { Header = pinned ? "Desafixar do Dock" : "Fixar no Dock" };
+            MenuItem pin = new MenuItem { Header = pinned ? Loc.UnpinFromDock : Loc.PinToDock };
             pin.Click += delegate
             {
                 if (pinned) _controller.UnpinApplication(path);
@@ -1650,7 +1821,7 @@ namespace Orla
             if (windows.Count > 0)
             {
                 menu.Items.Add(new Separator());
-                MenuItem close = new MenuItem { Header = windows.Count > 1 ? "Fechar todas as janelas" : "Fechar janela" };
+                MenuItem close = new MenuItem { Header = windows.Count > 1 ? Loc.CloseAllWindows : Loc.CloseWindow };
                 close.Click += delegate
                 {
                     foreach (WindowItem window in windows) ShellActions.CloseWindow(window.Handle);
@@ -1663,7 +1834,7 @@ namespace Orla
         private UIElement CreateShowDesktopButton()
         {
             FrameworkElement content = CreateDockIcon(Ui.DesktopGlyph(), false, false);
-            Button button = Ui.WrapButton(content, "Mostrar área de trabalho", 39, 39);
+            Button button = Ui.WrapButton(content, Loc.ShowDesktop, 39, 39);
             Ui.EnableDockMotion(button);
             button.Margin = new Thickness(2, 0, 2, 0);
             button.Click += delegate { ShellActions.ShowDesktop(); };
@@ -1715,6 +1886,7 @@ namespace Orla
         internal static readonly System.Windows.Media.Brush SecondaryTextBrush = new SolidColorBrush(Color.FromRgb(174, 174, 178));
         internal static readonly System.Windows.Media.Brush ErrorBrush = new SolidColorBrush(Color.FromRgb(255, 69, 58));
         internal static readonly System.Windows.Media.Brush SuccessBrush = new SolidColorBrush(Color.FromRgb(48, 209, 88));
+        internal static readonly System.Windows.Media.Brush AccentBrush = new SolidColorBrush(Color.FromRgb(10, 132, 255));
 
         internal static TextBlock Text(string value, double size, FontWeight weight)
         {
@@ -1952,11 +2124,11 @@ namespace Orla
         internal static ContextMenu CreateExitMenu(ShellController controller)
         {
             ContextMenu menu = new ContextMenu();
-            MenuItem openSearch = new MenuItem { Header = "Abrir Fluent Search" };
+            MenuItem openSearch = new MenuItem { Header = Loc.OpenFluentSearch };
             openSearch.Click += delegate { controller.LaunchFluentSearch(); };
             menu.Items.Add(openSearch);
             menu.Items.Add(new Separator());
-            MenuItem exit = new MenuItem { Header = "Restaurar barra do Windows e sair" };
+            MenuItem exit = new MenuItem { Header = Loc.RestoreTaskbarAndExit };
             exit.Click += delegate { controller.Exit(false); };
             menu.Items.Add(exit);
             return menu;
@@ -2004,7 +2176,7 @@ namespace Orla
         {
             IntPtr handle = NativeMethods.GetForegroundWindow();
             string title = GetWindowTitle(handle);
-            return string.IsNullOrWhiteSpace(title) ? "Área de Trabalho" : title;
+            return string.IsNullOrWhiteSpace(title) ? Loc.Desktop : title;
         }
 
         internal static IntPtr FindVisibleWindow(string processName, string expectedTitle)
@@ -2114,7 +2286,7 @@ namespace Orla
             }
             catch { }
 
-            if (string.Equals(processName, "explorer", StringComparison.OrdinalIgnoreCase)) name = "Explorador de Arquivos";
+            if (string.Equals(processName, "explorer", StringComparison.OrdinalIgnoreCase)) name = Loc.FileExplorer;
             else if (string.Equals(processName, "ms-teams", StringComparison.OrdinalIgnoreCase)) name = "Microsoft Teams";
             if (string.IsNullOrWhiteSpace(name)) name = !string.IsNullOrWhiteSpace(processName) ? processName : title;
             name = name.Trim();
@@ -2193,7 +2365,7 @@ namespace Orla
             ActivateWindowWithRetry(handle);
         }
 
-        private static void ActivateWindowWithRetry(IntPtr handle)
+        internal static void ActivateWindowWithRetry(IntPtr handle)
         {
             if (TryActivateWindow(handle)) return;
 

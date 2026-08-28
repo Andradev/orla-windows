@@ -33,7 +33,14 @@ O projeto nasceu de uma meta simples: manter a fluidez visual de um dock moderno
 - Fluent Search opcional: `Win` isolado alterna abrir/ocultar pelo canal local da própria instância, aceita toques rápidos em ordem e posiciona no monitor em uso sem salto visível;
 - botões do Fluent Search em cada tela sempre abrem a busca naquela tela;
 - `Win+Shift+S`, `Win+E`, `Win+D` e outras combinações continuam no Windows;
+- indicadores reais de Wi-Fi, volume, bateria e Bluetooth, sincronizados nas duas telas;
+- intensidade do Wi-Fi por API nativa, com estado desconectado explícito e sem leitura de SSID;
+- painel rápido em português, inglês ou espanhol conforme o idioma configurado no Windows;
+- painel com volume e mute locais; cartões de rede, Bluetooth e energia abrem diretamente a página correspondente das Configurações do Windows;
+- Bluetooth permanece configurável no painel quando desligado e só ocupa espaço na topbar quando está habilitado;
 - restauração explícita da barra nativa ao sair, desinstalar ou usar `--restore`.
+
+![Painel rápido com estados reais](docs/images/quick-panel.png)
 
 ## Desempenho medido
 
@@ -51,6 +58,8 @@ Teste contínuo de 10 minutos em Windows 11, Intel Iris Xe e dois monitores:
 ![Comparação de desempenho](docs/images/performance.svg)
 
 Os resultados variam conforme GPU, escala de DPI, quantidade de monitores e aplicativos abertos. Os números acima são evidência de uma máquina real, não uma garantia universal.
+
+Como regressão da versão 1.2.0, uma execução limpa de 60 segundos no mesmo PC e com dois monitores mediu 0,746% de CPU média, 74,37 MiB de working set e 63,59 MiB privados. Mesmo com indicadores reais e callbacks de áudio, a média permaneceu abaixo de 1% de CPU e a memória caiu aproximadamente 9–10% em relação à medição curta da versão 1.1.6.
 
 ## Instalação
 
@@ -85,6 +94,8 @@ Instalações antigas do VictorShell são migradas automaticamente: configuraç�
 | Borda inferior | Revela o dock daquele monitor |
 | `Win` isolado | Abre o Fluent Search no monitor do cursor |
 | Botão de busca | Abre o Fluent Search no monitor do botão |
+| Wi-Fi, som ou bateria na topbar | Abre o painel rápido naquela tela |
+| Cartão de rede, Bluetooth ou energia | Abre a configuração específica do Windows |
 
 ## Configuração
 
@@ -122,7 +133,7 @@ Recuperação direta da barra nativa:
 
 ![Arquitetura do Orla](docs/images/architecture.svg)
 
-Orla é um executável WPF/.NET Framework x64 sem pacotes externos. Ele combina AppBar, enumeração de janelas, `SetWinEventHook` para foco e um hook de teclado limitado ao `Win` isolado. Veja [Arquitetura](docs/ARCHITECTURE.md) e [Solução de problemas](docs/TROUBLESHOOTING.md).
+Orla é um executável WPF/.NET Framework x64 sem pacotes externos. Ele combina AppBar, enumeração de janelas, `SetWinEventHook` para foco, APIs nativas de áudio/WLAN/Bluetooth e um hook de teclado limitado ao `Win` isolado. Veja [Arquitetura](docs/ARCHITECTURE.md) e [Solução de problemas](docs/TROUBLESHOOTING.md).
 
 ## Build
 
@@ -136,7 +147,7 @@ O ícone do executável é gerado a partir de `docs\images\orla-mark.svg`. Para 
 
 ## Limitações
 
-- estados de rede, som e bateria são indicadores simples, não flyouts personalizados;
+- o painel informa a conexão ativa, mas não lista redes nem dispositivos; essas ações são encaminhadas às páginas oficiais do Windows;
 - janelas elevadas podem recusar ativação por um processo não elevado;
 - Fluent Search é um projeto separado e não é instalado automaticamente;
 - a identidade visual é inspirada em princípios gerais de clareza, hierarquia e movimento, sem afiliação com fabricantes de sistemas operacionais.

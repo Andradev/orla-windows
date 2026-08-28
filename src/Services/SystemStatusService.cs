@@ -1,0 +1,504 @@
+using System;
+using System.Linq;
+using System.Net.NetworkInformation;
+using System.Runtime.InteropServices;
+using System.Threading;
+using Forms = System.Windows.Forms;
+
+namespace Orla
+{
+    internal sealed class NetworkSnapshot
+    {
+        internal readonly bool IsAvailable;
+        internal readonly bool IsWifi;
+        internal readonly int SignalQuality;
+        internal readonly string Name;
+        internal readonly string Detail;
+
+        internal NetworkSnapshot(bool isAvailable, bool isWifi, int signalQuality, string name, string detail)
+        {
+            IsAvailable = isAvailable;
+            IsWifi = isWifi;
+            SignalQuality = signalQuality;
+            Name = name;
+            Detail = detail;
+        }
+    }
+
+    // As inscrições existem apenas durante a vida do Quick Panel e são sempre
+    // removidas no Dispose para não manter a janela viva por eventos estáticos.
+    internal sealed class NetworkStatusService : IDisposable
+    {
+        private bool _disposed;
+
+        internal event EventHandler StateChanged;
+
+        internal NetworkStatusService()
+        {
+            NetworkChange.NetworkAvailabilityChanged += OnAvailabilityChanged;
+            NetworkChange.NetworkAddressChanged += OnAddressChanged;
+        }
+
+        internal NetworkSnapshot ReadSnapshot()
+        {
+            try
+            {
+                NetworkInterface active = NetworkInterface.GetAllNetworkInterfaces()
+                    .Where(delegate(NetworkInterface item)
+                    {
+                        return item.OperationalStatus == OperationalStatus.Up
+                            && item.NetworkInterfaceType != NetworkInterfaceType.Loopback
+                            && item.NetworkInterfaceType != NetworkInterfaceType.Tunnel;
+                    })
+                    .OrderByDescending(HasGateway)
+                    .ThenBy(NetworkPriority)
+                    .FirstOrDefault();
+
+                if (active == null || !NetworkInterface.GetIsNetworkAvailable())
+                    return new NetworkSnapshot(false, false, -1, Loc.NoConnection, Loc.CheckNetwork);
+
+                bool isWifi = active.NetworkInterfaceType == NetworkInterfaceType.Wireless80211;
+                string kind;
+                if (isWifi) kind = Loc.WifiConnected;
+                else if (active.NetworkInterfaceType == NetworkInterfaceType.Ethernet
+                    || active.NetworkInterfaceType == NetworkInterfaceType.GigabitEthernet) kind = Loc.EthernetConnected;
+                else kind = Loc.NetworkConnected;
+
+                string detail = string.IsNullOrWhiteSpace(active.Name) ? active.Description : active.Name;
+                if (string.IsNullOrWhiteSpace(detail)) detail = Loc.InternetAvailable;
+                if (string.Equals(detail, "Wi-Fi", StringComparison.OrdinalIgnoreCase)
+                    || string.Equals(detail, "Ethernet", StringComparison.OrdinalIgnoreCase))
+                    detail = Loc.InternetAvailable;
+                int signalQuality = isWifi ? NativeWifiSignal.ReadQuality() : -1;
+                if (isWifi && signalQuality >= 0)
+                    detail = detail + " • " + Loc.WifiSignal(signalQuality);
+                return new NetworkSnapshot(true, isWifi, signalQuality, kind, detail);
+            }
+            catch (Exception exception)
+            {
+                Logger.Write("Falha ao consultar rede: " + exception.Message);
+                return new NetworkSnapshot(false, false, -1, Loc.NetworkStatus, Loc.TemporarilyUnavailable);
+            }
+        }
+
+        private static bool HasGateway(NetworkInterface item)
+        {
+            try
+            {
+                return item.GetIPProperties().GatewayAddresses.Any(delegate(GatewayIPAddressInformation gateway)
+                {
+                    return gateway.Address != null && !gateway.Address.Equals(System.Net.IPAddress.Any)
+                        && !gateway.Address.Equals(System.Net.IPAddress.IPv6Any);
+                });
+            }
+            catch { return false; }
+        }
+
+        private static int NetworkPriority(NetworkInterface item)
+        {
+            if (item.NetworkInterfaceType == NetworkInterfaceType.Wireless80211) return 0;
+            if (item.NetworkInterfaceType == NetworkInterfaceType.Ethernet
+                || item.NetworkInterfaceType == NetworkInterfaceType.GigabitEthernet) return 1;
+            return 2;
+        }
+
+        private void OnAvailabilityChanged(object sender, NetworkAvailabilityEventArgs eventArgs)
+        {
+            RaiseStateChanged();
+        }
+
+        private void OnAddressChanged(object sender, EventArgs eventArgs)
+        {
+            RaiseStateChanged();
+        }
+
+        private void RaiseStateChanged()
+        {
+            if (_disposed) return;
+            EventHandler handler = StateChanged;
+            if (handler == null) return;
+            try { handler(this, EventArgs.Empty); }
+            catch (Exception exception) { Logger.Write("Falha ao entregar evento de rede: " + exception.Message); }
+        }
+
+        public void Dispose()
+        {
+            if (_disposed) return;
+            _disposed = true;
+            NetworkChange.NetworkAvailabilityChanged -= OnAvailabilityChanged;
+            NetworkChange.NetworkAddressChanged -= OnAddressChanged;
+            StateChanged = null;
+        }
+    }
+
+    internal sealed class BatterySnapshot
+    {
+        internal readonly bool HasBattery;
+        internal readonly bool IsCharging;
+        internal readonly bool IsPluggedIn;
+        internal readonly int Percent;
+        internal readonly string Status;
+        internal readonly string Detail;
+
+        internal BatterySnapshot(bool hasBattery, bool isCharging, bool isPluggedIn,
+            int percent, string status, string detail)
+        {
+            HasBattery = hasBattery;
+            IsCharging = isCharging;
+            IsPluggedIn = isPluggedIn;
+            Percent = percent;
+            Status = status;
+            Detail = detail;
+        }
+
+        internal static BatterySnapshot Read()
+        {
+            Forms.PowerStatus power = Forms.SystemInformation.PowerStatus;
+            if ((power.BatteryChargeStatus & Forms.BatteryChargeStatus.NoSystemBattery) != 0)
+                return new BatterySnapshot(false, false, true, 100, Loc.ExternalPower, Loc.NoBatteryReported);
+
+            int percent = Math.Max(0, Math.Min(100, (int)Math.Round(power.BatteryLifePercent * 100)));
+            bool plugged = power.PowerLineStatus == Forms.PowerLineStatus.Online;
+            bool charging = (power.BatteryChargeStatus & Forms.BatteryChargeStatus.Charging) != 0;
+            string status = charging ? Loc.Charging : plugged ? Loc.PluggedIn : Loc.OnBattery;
+            string detail = percent.ToString(Loc.FormattingCulture) + "%";
+            if (!plugged && power.BatteryLifeRemaining > 0)
+            {
+                TimeSpan remaining = TimeSpan.FromSeconds(power.BatteryLifeRemaining);
+                detail += " • ";
+                if (remaining.TotalHours >= 1) detail += ((int)remaining.TotalHours).ToString() + " h ";
+                detail += Loc.RemainingMinutes(remaining.Minutes);
+            }
+            return new BatterySnapshot(true, charging, plugged, percent, status, detail);
+        }
+    }
+
+    internal sealed class BluetoothSnapshot
+    {
+        internal readonly bool IsEnabled;
+        internal readonly bool IsConnected;
+        internal readonly string DeviceName;
+
+        internal BluetoothSnapshot(bool isEnabled, bool isConnected, string deviceName)
+        {
+            IsEnabled = isEnabled;
+            IsConnected = isConnected;
+            DeviceName = deviceName;
+        }
+
+        internal static BluetoothSnapshot Read()
+        {
+            IntPtr radioFindHandle = IntPtr.Zero;
+            IntPtr radioHandle = IntPtr.Zero;
+            IntPtr findHandle = IntPtr.Zero;
+            try
+            {
+                BluetoothFindRadioParams radioSearch = new BluetoothFindRadioParams();
+                radioSearch.Size = Marshal.SizeOf(typeof(BluetoothFindRadioParams));
+                radioFindHandle = BluetoothNative.BluetoothFindFirstRadio(ref radioSearch, out radioHandle);
+                if (radioFindHandle == IntPtr.Zero || radioHandle == IntPtr.Zero)
+                    return new BluetoothSnapshot(false, false, string.Empty);
+
+                BluetoothDeviceSearchParams search = new BluetoothDeviceSearchParams();
+                search.Size = Marshal.SizeOf(typeof(BluetoothDeviceSearchParams));
+                search.ReturnConnected = true;
+                search.TimeoutMultiplier = 1;
+                search.RadioHandle = radioHandle;
+                BluetoothDeviceInfo device = new BluetoothDeviceInfo();
+                device.Size = Marshal.SizeOf(typeof(BluetoothDeviceInfo));
+                findHandle = BluetoothNative.BluetoothFindFirstDevice(ref search, ref device);
+                if (findHandle == IntPtr.Zero || !device.Connected)
+                    return new BluetoothSnapshot(true, false, string.Empty);
+                string name = string.IsNullOrWhiteSpace(device.Name) ? Loc.BluetoothDevice : device.Name.Trim();
+                return new BluetoothSnapshot(true, true, name);
+            }
+            catch (Exception exception)
+            {
+                Logger.Write("Falha ao consultar Bluetooth: " + exception.Message);
+                return new BluetoothSnapshot(false, false, string.Empty);
+            }
+            finally
+            {
+                if (findHandle != IntPtr.Zero) BluetoothNative.BluetoothFindDeviceClose(findHandle);
+                if (radioHandle != IntPtr.Zero) BluetoothNative.CloseHandle(radioHandle);
+                if (radioFindHandle != IntPtr.Zero) BluetoothNative.BluetoothFindRadioClose(radioFindHandle);
+            }
+        }
+    }
+
+    internal sealed class SystemStatusSnapshot
+    {
+        internal readonly NetworkSnapshot Network;
+        internal readonly AudioStateChangedEventArgs Audio;
+        internal readonly BatterySnapshot Battery;
+        internal readonly BluetoothSnapshot Bluetooth;
+        internal readonly bool AudioAvailable;
+
+        internal SystemStatusSnapshot(NetworkSnapshot network, AudioStateChangedEventArgs audio,
+            BatterySnapshot battery, BluetoothSnapshot bluetooth, bool audioAvailable)
+        {
+            Network = network;
+            Audio = audio;
+            Battery = battery;
+            Bluetooth = bluetooth;
+            AudioAvailable = audioAvailable;
+        }
+    }
+
+    // Uma única instância atende todas as topbars. Rede e volume usam eventos;
+    // bateria, Bluetooth e intensidade do Wi-Fi recebem uma leitura barata a
+    // cada 10 segundos para acompanhar mudanças que não geram evento gerenciado.
+    internal sealed class SystemStatusMonitor : IDisposable
+    {
+        private readonly object _sync = new object();
+        private readonly AudioService _audio;
+        private readonly NetworkStatusService _network;
+        private readonly Timer _slowTimer;
+        private SystemStatusSnapshot _snapshot;
+        private bool _disposed;
+
+        internal event EventHandler StateChanged;
+
+        internal SystemStatusMonitor()
+        {
+            _audio = new AudioService();
+            _network = new NetworkStatusService();
+            _snapshot = new SystemStatusSnapshot(
+                _network.ReadSnapshot(), _audio.ReadState(), BatterySnapshot.Read(), BluetoothSnapshot.Read(), _audio.IsAvailable);
+            _audio.StateChanged += OnAudioStateChanged;
+            _network.StateChanged += OnNetworkStateChanged;
+            _slowTimer = new Timer(OnSlowTimer, null, TimeSpan.FromSeconds(10), TimeSpan.FromSeconds(10));
+        }
+
+        internal SystemStatusSnapshot ReadSnapshot()
+        {
+            lock (_sync) return _snapshot;
+        }
+
+        private void OnAudioStateChanged(object sender, AudioStateChangedEventArgs state)
+        {
+            lock (_sync)
+            {
+                if (_disposed) return;
+                _snapshot = new SystemStatusSnapshot(_snapshot.Network, state, _snapshot.Battery, _snapshot.Bluetooth, _audio.IsAvailable);
+            }
+            RaiseStateChanged();
+        }
+
+        private void OnNetworkStateChanged(object sender, EventArgs eventArgs)
+        {
+            NetworkSnapshot network = _network.ReadSnapshot();
+            lock (_sync)
+            {
+                if (_disposed) return;
+                _snapshot = new SystemStatusSnapshot(network, _snapshot.Audio, _snapshot.Battery, _snapshot.Bluetooth, _snapshot.AudioAvailable);
+            }
+            RaiseStateChanged();
+        }
+
+        private void OnSlowTimer(object state)
+        {
+            NetworkSnapshot network;
+            BatterySnapshot battery;
+            BluetoothSnapshot bluetooth;
+            try
+            {
+                network = _network.ReadSnapshot();
+                battery = BatterySnapshot.Read();
+                bluetooth = BluetoothSnapshot.Read();
+            }
+            catch (Exception exception)
+            {
+                Logger.Write("Falha ao atualizar indicadores do sistema: " + exception.Message);
+                return;
+            }
+            lock (_sync)
+            {
+                if (_disposed) return;
+                _snapshot = new SystemStatusSnapshot(network, _snapshot.Audio, battery, bluetooth, _snapshot.AudioAvailable);
+            }
+            RaiseStateChanged();
+        }
+
+        private void RaiseStateChanged()
+        {
+            EventHandler handler = StateChanged;
+            if (handler == null || _disposed) return;
+            try { handler(this, EventArgs.Empty); }
+            catch (Exception exception) { Logger.Write("Falha ao entregar estado do sistema: " + exception.Message); }
+        }
+
+        public void Dispose()
+        {
+            lock (_sync)
+            {
+                if (_disposed) return;
+                _disposed = true;
+            }
+            _slowTimer.Dispose();
+            _audio.StateChanged -= OnAudioStateChanged;
+            _network.StateChanged -= OnNetworkStateChanged;
+            _network.Dispose();
+            _audio.Dispose();
+            StateChanged = null;
+        }
+    }
+
+    // Consulta somente o RSSI da interface conectada. Esse opcode não lê SSID
+    // nem perfis salvos e, portanto, não depende da permissão de localização.
+    internal static class NativeWifiSignal
+    {
+        private const int WlanInterfaceStateConnected = 1;
+        private const int WlanIntfOpcodeRssi = unchecked((int)0x10000102);
+
+        internal static int ReadQuality()
+        {
+            IntPtr clientHandle = IntPtr.Zero;
+            IntPtr interfaceList = IntPtr.Zero;
+            try
+            {
+                uint negotiatedVersion;
+                if (WlanNative.WlanOpenHandle(2, IntPtr.Zero, out negotiatedVersion, out clientHandle) != 0
+                    || clientHandle == IntPtr.Zero) return -1;
+                if (WlanNative.WlanEnumInterfaces(clientHandle, IntPtr.Zero, out interfaceList) != 0
+                    || interfaceList == IntPtr.Zero) return -1;
+
+                int count = Marshal.ReadInt32(interfaceList, 0);
+                int itemSize = Marshal.SizeOf(typeof(WlanInterfaceInfo));
+                IntPtr firstItem = IntPtr.Add(interfaceList, 8);
+                for (int index = 0; index < count; index++)
+                {
+                    WlanInterfaceInfo item = (WlanInterfaceInfo)Marshal.PtrToStructure(
+                        IntPtr.Add(firstItem, index * itemSize), typeof(WlanInterfaceInfo));
+                    if (item.State != WlanInterfaceStateConnected) continue;
+
+                    int dataSize;
+                    IntPtr data;
+                    int result = WlanNative.WlanQueryInterface(clientHandle, ref item.InterfaceGuid,
+                        WlanIntfOpcodeRssi, IntPtr.Zero, out dataSize, out data, IntPtr.Zero);
+                    if (result != 0 || data == IntPtr.Zero)
+                    {
+                        if (data != IntPtr.Zero) WlanNative.WlanFreeMemory(data);
+                        continue;
+                    }
+                    try
+                    {
+                        int rssi = Marshal.ReadInt32(data);
+                        if (rssi <= -100) return 0;
+                        if (rssi >= -50) return 100;
+                        return Math.Max(0, Math.Min(100, 2 * (rssi + 100)));
+                    }
+                    finally { WlanNative.WlanFreeMemory(data); }
+                }
+            }
+            catch (Exception exception)
+            {
+                Logger.Write("Falha ao consultar intensidade do Wi-Fi: " + exception.Message);
+            }
+            finally
+            {
+                if (interfaceList != IntPtr.Zero) WlanNative.WlanFreeMemory(interfaceList);
+                if (clientHandle != IntPtr.Zero) WlanNative.WlanCloseHandle(clientHandle, IntPtr.Zero);
+            }
+            return -1;
+        }
+    }
+
+    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
+    internal struct WlanInterfaceInfo
+    {
+        internal Guid InterfaceGuid;
+        [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 256)] internal string Description;
+        internal int State;
+    }
+
+    internal static class WlanNative
+    {
+        [DllImport("wlanapi.dll")]
+        internal static extern int WlanOpenHandle(uint clientVersion, IntPtr reserved,
+            out uint negotiatedVersion, out IntPtr clientHandle);
+
+        [DllImport("wlanapi.dll")]
+        internal static extern int WlanCloseHandle(IntPtr clientHandle, IntPtr reserved);
+
+        [DllImport("wlanapi.dll")]
+        internal static extern int WlanEnumInterfaces(IntPtr clientHandle, IntPtr reserved,
+            out IntPtr interfaceList);
+
+        [DllImport("wlanapi.dll")]
+        internal static extern int WlanQueryInterface(IntPtr clientHandle, ref Guid interfaceGuid,
+            int opcode, IntPtr reserved, out int dataSize, out IntPtr data, IntPtr opcodeValueType);
+
+        [DllImport("wlanapi.dll")]
+        internal static extern void WlanFreeMemory(IntPtr memory);
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    internal struct BluetoothFindRadioParams
+    {
+        internal int Size;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    internal struct BluetoothDeviceSearchParams
+    {
+        internal int Size;
+        [MarshalAs(UnmanagedType.Bool)] internal bool ReturnAuthenticated;
+        [MarshalAs(UnmanagedType.Bool)] internal bool ReturnRemembered;
+        [MarshalAs(UnmanagedType.Bool)] internal bool ReturnUnknown;
+        [MarshalAs(UnmanagedType.Bool)] internal bool ReturnConnected;
+        [MarshalAs(UnmanagedType.Bool)] internal bool IssueInquiry;
+        internal byte TimeoutMultiplier;
+        internal IntPtr RadioHandle;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    internal struct BluetoothSystemTime
+    {
+        internal ushort Year;
+        internal ushort Month;
+        internal ushort DayOfWeek;
+        internal ushort Day;
+        internal ushort Hour;
+        internal ushort Minute;
+        internal ushort Second;
+        internal ushort Milliseconds;
+    }
+
+    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
+    internal struct BluetoothDeviceInfo
+    {
+        internal int Size;
+        internal ulong Address;
+        internal uint ClassOfDevice;
+        [MarshalAs(UnmanagedType.Bool)] internal bool Connected;
+        [MarshalAs(UnmanagedType.Bool)] internal bool Remembered;
+        [MarshalAs(UnmanagedType.Bool)] internal bool Authenticated;
+        internal BluetoothSystemTime LastSeen;
+        internal BluetoothSystemTime LastUsed;
+        [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 248)] internal string Name;
+    }
+
+    internal static class BluetoothNative
+    {
+        [DllImport("BluetoothApis.dll", SetLastError = true)]
+        internal static extern IntPtr BluetoothFindFirstRadio(
+            ref BluetoothFindRadioParams parameters, out IntPtr radioHandle);
+
+        [DllImport("BluetoothApis.dll", SetLastError = true)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        internal static extern bool BluetoothFindRadioClose(IntPtr findHandle);
+
+        [DllImport("BluetoothApis.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+        internal static extern IntPtr BluetoothFindFirstDevice(
+            ref BluetoothDeviceSearchParams searchParameters, ref BluetoothDeviceInfo deviceInfo);
+
+        [DllImport("BluetoothApis.dll", SetLastError = true)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        internal static extern bool BluetoothFindDeviceClose(IntPtr findHandle);
+
+        [DllImport("kernel32.dll", SetLastError = true)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        internal static extern bool CloseHandle(IntPtr handle);
+    }
+}

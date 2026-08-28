@@ -12,6 +12,9 @@ Orla é um único executável WPF/.NET Framework x64, sem pacotes externos, serv
 - `BareWindowsKeyHook`: suprime somente `Win` isolado e reinsere `Win` quando outra tecla forma uma combinação.
 - `TaskbarController`: oculta e restaura as taskbars nativas de forma reversível.
 - `ShellSettings`: INI simples no perfil do usuário, com migração da instalação anterior.
+- `SystemStatusMonitor`: uma fonte compartilhada de rede, áudio, bateria e Bluetooth para todas as topbars.
+- `QuickPanelWindow`: flyout transitório, criado somente quando aberto e totalmente descartado ao fechar.
+- `Loc`: seleciona português, inglês ou espanhol pela lista de idiomas do perfil do Windows, com fallback em inglês.
 
 ## Inicialização do usuário
 
@@ -29,7 +32,11 @@ Essa ordem é importante: reexibir diretamente o HWND oculto produz uma janela v
 
 ## Desempenho
 
-Topbars opacas e docks transparentes usam renderização por software para manter previsível a memória em GPUs integradas. Relógio/rede/bateria são atualizados a cada 15 segundos. Foco usa evento nativo; o catálogo do dock roda a cada 2 segundos; borda e sobreposição usam cache.
+Topbars opacas e docks transparentes usam renderização por software para manter previsível a memória em GPUs integradas. Foco, disponibilidade de rede e volume usam eventos, sem polling rápido. Bateria, Bluetooth e intensidade do Wi-Fi são consultados a cada 10 segundos por uma única instância compartilhada; o painel faz sua própria leitura lenta somente enquanto está aberto. O catálogo do dock roda a cada 2 segundos; borda e sobreposição usam cache.
+
+O áudio usa `IAudioEndpointVolume` e seu callback nativo. A rede usa `NetworkChange`; quando a interface ativa é Wi-Fi, o RSSI vem de `WlanQueryInterface` e é convertido em uma qualidade de 0–100%. A consulta não solicita SSID, perfis salvos ou permissão de localização. Bluetooth é enumerado pelas APIs Win32 e o respectivo handle sempre é fechado na mesma leitura.
+
+O painel mantém uma hierarquia visual simples: cartões de largura uniforme, título e estado em duas linhas, espaçamento constante, chevron apenas em ações navegáveis e controles WPF acessíveis por teclado/UI Automation. Rede, Bluetooth e energia encaminham para URIs `ms-settings:` específicas; volume e mute são ajustados diretamente.
 
 O dock mantém o histórico dos dois últimos aplicativos externos, ignorando suas próprias janelas e janelas auxiliares do mesmo processo. Ao minimizar o aplicativo ativo, Orla promove o aplicativo anterior e sincroniza imediatamente os indicadores dos dois monitores. Antes de ativar um app, resolve novamente seus HWNDs para não usar uma janela substituída desde o último refresh; uma recusa temporária de foco do Windows recebe tentativas curtas e limitadas.
 

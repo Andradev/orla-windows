@@ -25,6 +25,12 @@ O Windows impede que processos normais controlem janelas elevadas. Execute ambos
 
 Encoste o mouse na última linha de pixels da borda inferior do monitor. O dock aparece após aproximadamente 100–500 ms, conforme o ciclo de detecção.
 
+## Wi-Fi, Bluetooth ou bateria mostram um estado inesperado
+
+Os indicadores refletem as APIs do Windows e podem levar até 10 segundos para acompanhar uma mudança. Abra o painel pelo ícone de rede, som ou bateria. O Bluetooth continua listado ali mesmo quando está desligado; clique no cartão para abrir diretamente sua página nas Configurações do Windows.
+
+O Wi-Fi mostra intensidade sem ler o nome da rede. Se não houver conexão ativa, o ícone e o texto mudam para o estado desconectado. Computadores sem bateria informada pelo firmware mostram alimentação externa.
+
 ## Alterei o INI e nada mudou
 
 Saia pelo menu de contexto, edite `%LOCALAPPDATA%\Orla\settings.ini` e inicie novamente.
