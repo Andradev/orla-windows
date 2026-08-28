@@ -49,7 +49,7 @@ if ($NoStartup) {
     Remove-ItemProperty -Path $runKey -Name 'Orla' -ErrorAction SilentlyContinue
 } else {
     New-Item -Path $runKey -Force | Out-Null
-    Set-ItemProperty -Path $runKey -Name 'Orla' -Type String -Value ('"' + $installedExe + '"')
+    Set-ItemProperty -Path $runKey -Name 'Orla' -Type String -Value ('"' + $installedExe + '" --startup')
 }
 
 if (-not $DoNotStart) {

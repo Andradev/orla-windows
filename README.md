@@ -61,7 +61,9 @@ cd orla-windows
 powershell -NoProfile -ExecutionPolicy Bypass -File .\Install.ps1
 ```
 
-O instalador compila o código localmente, instala em `%LOCALAPPDATA%\Orla` e cria somente a entrada de inicialização do usuário. Não solicita privilégios de administrador.
+O instalador compila o código localmente, instala em `%LOCALAPPDATA%\Orla` e cria somente a entrada de inicialização do usuário. No login, a Orla lê o mesmo `settings.ini`, recria as barras em todos os monitores e restaura a integração com o Fluent Search. Não solicita privilégios de administrador.
+
+Se o Windows tentar restaurar uma cópia baixada ou usada em testes, ela transfere a inicialização para `%LOCALAPPDATA%\Orla\Orla.exe`. Isso impede uma cópia temporária de assumir a instância única antes da instalação oficial. Desenvolvedores que precisem executar intencionalmente outro binário podem usar `Orla.exe --portable`.
 
 Para não iniciar automaticamente no login:
 

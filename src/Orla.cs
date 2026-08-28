@@ -29,8 +29,8 @@ using WpfEllipse = System.Windows.Shapes.Ellipse;
 [assembly: AssemblyCompany("Orla contributors")]
 [assembly: AssemblyProduct("Orla")]
 [assembly: AssemblyCopyright("MIT License")]
-[assembly: AssemblyVersion("1.1.4.0")]
-[assembly: AssemblyFileVersion("1.1.4.0")]
+[assembly: AssemblyVersion("1.1.5.0")]
+[assembly: AssemblyFileVersion("1.1.5.0")]
 
 namespace Orla
 {
@@ -47,12 +47,21 @@ namespace Orla
                 return;
             }
 
+            if (RedirectExternalCopyToInstallation(args)) return;
+
+            bool automaticStartup = args.Any(delegate(string value)
+            {
+                return string.Equals(value, "--startup", StringComparison.OrdinalIgnoreCase);
+            });
+
             bool created;
             _mutex = new Mutex(true, "Orla.SingleInstance", out created);
             if (!created)
             {
                 return;
             }
+
+            if (automaticStartup) Logger.Write("Inicialização automática do usuário confirmada.");
 
             // O renderizador padrão reserva centenas de MB na GPU integrada.
             // SoftwareOnly mantém a memória previsível neste PC.
@@ -76,6 +85,41 @@ namespace Orla
 
             controller.Start();
             app.Run();
+        }
+
+        private static bool RedirectExternalCopyToInstallation(string[] args)
+        {
+            if (args.Any(delegate(string value)
+            {
+                return string.Equals(value, "--portable", StringComparison.OrdinalIgnoreCase);
+            })) return false;
+
+            try
+            {
+                string currentPath = Path.GetFullPath(Assembly.GetExecutingAssembly().Location);
+                string installedPath = Path.GetFullPath(Path.Combine(
+                    Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                    "Orla", "Orla.exe"));
+                if (string.Equals(currentPath, installedPath, StringComparison.OrdinalIgnoreCase)
+                    || !File.Exists(installedPath)) return false;
+
+                Process.Start(new ProcessStartInfo
+                {
+                    FileName = installedPath,
+                    Arguments = args.Any(delegate(string value)
+                    {
+                        return string.Equals(value, "--startup", StringComparison.OrdinalIgnoreCase);
+                    }) ? "--startup" : string.Empty,
+                    UseShellExecute = true
+                });
+                Logger.Write("Cópia externa redirecionada para a instalação oficial: " + currentPath);
+                return true;
+            }
+            catch (Exception exception)
+            {
+                Logger.Write("Não foi possível redirecionar para a instalação oficial: " + exception.Message);
+                return false;
+            }
         }
     }
 
