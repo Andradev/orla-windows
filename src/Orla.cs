@@ -28,8 +28,8 @@ using WpfEllipse = System.Windows.Shapes.Ellipse;
 [assembly: AssemblyCompany("Orla contributors")]
 [assembly: AssemblyProduct("Orla")]
 [assembly: AssemblyCopyright("MIT License")]
-[assembly: AssemblyVersion("1.2.1.0")]
-[assembly: AssemblyFileVersion("1.2.1.0")]
+[assembly: AssemblyVersion("1.2.2.0")]
+[assembly: AssemblyFileVersion("1.2.2.0")]
 
 namespace Orla
 {
@@ -319,7 +319,12 @@ namespace Orla
             uint currentProcessId;
             NativeMethods.GetWindowThreadProcessId(current, out currentProcessId);
             if (current == IntPtr.Zero || currentProcessId == _currentProcessId)
-                ShellActions.ActivateWindowWithRetry(previous);
+            {
+                ThreadPool.QueueUserWorkItem(delegate
+                {
+                    ShellActions.ActivateWindowWithRetry(previous);
+                });
+            }
         }
 
         internal bool IsPinned(string path)
@@ -1075,15 +1080,13 @@ namespace Orla
         private readonly SystemStatusMonitor _statusMonitor;
         private readonly TextBlock _activeTitle;
         private readonly TextBlock _clock;
-        private readonly TextBlock _network;
-        private readonly TextBlock _volume;
-        private readonly TextBlock _batteryGlyph;
+        private readonly VectorIcon _network;
+        private readonly VectorIcon _volume;
+        private readonly VectorIcon _batteryGlyph;
         private readonly TextBlock _batteryPercent;
-        private readonly TextBlock _bluetooth;
-        private readonly Button _networkButton;
-        private readonly Button _volumeButton;
-        private readonly Button _batteryButton;
-        private readonly Button _bluetoothButton;
+        private readonly VectorIcon _bluetooth;
+        private readonly FrameworkElement _bluetoothSlot;
+        private readonly Button _statusButton;
         private readonly DispatcherTimer _timer;
 
         internal TopBarWindow(ShellSettings settings, ShellController controller,
@@ -1106,7 +1109,7 @@ namespace Orla
             grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
 
             StackPanel left = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
-            TextBlock searchGlyph = Ui.Glyph("\uE721", Loc.OpenFluentSearch);
+            VectorIcon searchGlyph = Ui.Vector(OrlaIcon.Search, Loc.OpenFluentSearch, 15);
             searchGlyph.Foreground = new SolidColorBrush(Color.FromRgb(10, 132, 255));
             Button search = Ui.WrapButton(searchGlyph, Loc.OpenFluentSearchHint, 28, 24);
             Ui.EnableTopBarMotion(search);
@@ -1141,58 +1144,58 @@ namespace Orla
                 Orientation = Orientation.Horizontal,
                 VerticalAlignment = VerticalAlignment.Center
             };
-            Border indicatorsSurface = new Border
+            _network = Ui.Vector(OrlaIcon.WifiMedium, Loc.NetworkAndInternet, 19);
+            System.Windows.Controls.ToolTipService.SetToolTip(_network, null);
+            Grid networkSlot = new Grid { Width = 25, Height = 25 };
+            networkSlot.Children.Add(_network);
+            indicators.Children.Add(networkSlot);
+
+            _volume = Ui.Vector(OrlaIcon.VolumeHigh, Loc.Sound, 17);
+            System.Windows.Controls.ToolTipService.SetToolTip(_volume, null);
+            Grid volumeSlot = new Grid { Width = 25, Height = 25 };
+            volumeSlot.Children.Add(_volume);
+            indicators.Children.Add(volumeSlot);
+
+            Grid batteryPanel = new Grid
             {
-                Background = new SolidColorBrush(Color.FromArgb(13, 255, 255, 255)),
-                CornerRadius = new CornerRadius(9),
-                Padding = new Thickness(2, 0, 2, 0),
-                Child = indicators
-            };
-
-            _network = Ui.Glyph("\uE701", Loc.NetworkAndInternet);
-            Ui.ConfigureStatusGlyph(_network, 14);
-            _networkButton = Ui.WrapButton(_network, Loc.NetworkAndInternet, 27, 25);
-            Ui.EnableTopBarMotion(_networkButton);
-            _networkButton.Click += delegate { _controller.ToggleQuickPanel(ScreenDeviceName); };
-            indicators.Children.Add(_networkButton);
-
-            _volume = Ui.Glyph("\uE767", Loc.Sound);
-            Ui.ConfigureStatusGlyph(_volume, 14);
-            _volumeButton = Ui.WrapButton(_volume, Loc.Sound, 27, 25);
-            Ui.EnableTopBarMotion(_volumeButton);
-            _volumeButton.Click += delegate { _controller.ToggleQuickPanel(ScreenDeviceName); };
-            indicators.Children.Add(_volumeButton);
-
-            StackPanel batteryPanel = new StackPanel
-            {
-                Orientation = Orientation.Horizontal,
                 VerticalAlignment = VerticalAlignment.Center,
-                Width = 50
+                Width = 52,
+                Height = 20
             };
-            _batteryGlyph = Ui.Glyph("\uE83F", Loc.PowerAndBattery);
-            Ui.ConfigureStatusGlyph(_batteryGlyph, 15);
+            batteryPanel.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(20) });
+            batteryPanel.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(3) });
+            batteryPanel.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(29) });
+            _batteryGlyph = Ui.Vector(OrlaIcon.Battery, Loc.PowerAndBattery, 19);
+            System.Windows.Controls.ToolTipService.SetToolTip(_batteryGlyph, null);
             _batteryPercent = Ui.Text("", 10.5, FontWeights.SemiBold);
-            _batteryPercent.Margin = new Thickness(3, 0, 0, 0);
             _batteryPercent.Width = 29;
+            _batteryPercent.Height = 18;
+            _batteryPercent.LineHeight = 18;
+            _batteryPercent.LineStackingStrategy = LineStackingStrategy.BlockLineHeight;
             _batteryPercent.TextAlignment = TextAlignment.Left;
+            _batteryPercent.HorizontalAlignment = HorizontalAlignment.Left;
+            _batteryPercent.VerticalAlignment = VerticalAlignment.Center;
+            _batteryPercent.RenderTransform = new TranslateTransform(0, -1);
+            TextOptions.SetTextFormattingMode(_batteryPercent, TextFormattingMode.Display);
             batteryPanel.Children.Add(_batteryGlyph);
+            Grid.SetColumn(_batteryPercent, 2);
             batteryPanel.Children.Add(_batteryPercent);
-            _batteryButton = Ui.WrapButton(batteryPanel, Loc.PowerAndBattery, 54, 25);
-            Ui.EnableTopBarMotion(_batteryButton);
-            _batteryButton.Click += delegate { _controller.ToggleQuickPanel(ScreenDeviceName); };
-            indicators.Children.Add(_batteryButton);
+            indicators.Children.Add(batteryPanel);
 
-            _bluetooth = Ui.Glyph("\uE702", Loc.Bluetooth);
-            Ui.ConfigureStatusGlyph(_bluetooth, 14);
-            _bluetoothButton = Ui.WrapButton(_bluetooth, Loc.Bluetooth, 27, 25);
-            Ui.EnableTopBarMotion(_bluetoothButton);
-            _bluetoothButton.Click += delegate { ShellActions.OpenUri("ms-settings:bluetooth"); };
-            indicators.Children.Add(_bluetoothButton);
+            _bluetooth = Ui.Vector(OrlaIcon.Bluetooth, Loc.Bluetooth, 17);
+            System.Windows.Controls.ToolTipService.SetToolTip(_bluetooth, null);
+            Grid bluetoothSlot = new Grid { Width = 25, Height = 25 };
+            bluetoothSlot.Children.Add(_bluetooth);
+            _bluetoothSlot = bluetoothSlot;
+            indicators.Children.Add(bluetoothSlot);
 
-            right.Children.Add(indicatorsSurface);
+            _statusButton = Ui.WrapButton(indicators, Loc.QuickPanelTitle, double.NaN, 25);
+            _statusButton.Padding = new Thickness(3, 0, 3, 0);
+            Ui.EnableTopBarMotion(_statusButton);
+            _statusButton.Click += delegate { _controller.ToggleQuickPanel(ScreenDeviceName); };
+            right.Children.Add(_statusButton);
 
-            TextBlock quickGlyph = Ui.Glyph("\uE713", Loc.Settings);
-            Ui.ConfigureStatusGlyph(quickGlyph, 14);
+            VectorIcon quickGlyph = Ui.Vector(OrlaIcon.Settings, Loc.Settings, 16);
             Button quickButton = Ui.WrapButton(quickGlyph, Loc.Settings, 27, 25);
             quickButton.Margin = new Thickness(3, 0, 0, 0);
             Ui.EnableTopBarMotion(quickButton);
@@ -1233,46 +1236,52 @@ namespace Orla
         {
             if (state == null) return;
 
-            _network.Text = StatusGlyphs.Network(state.Network);
+            _network.SetIcon(StatusIcons.Network(state.Network));
             _network.Foreground = state.Network.IsAvailable ? Ui.PrimaryTextBrush : Ui.ErrorBrush;
-            SetButtonDescription(_networkButton, state.Network.Name + " • " + state.Network.Detail);
+            string networkDescription = state.Network.Name + " • " + state.Network.Detail;
 
+            string volumeDescription;
             if (!state.AudioAvailable)
             {
-                _volume.Text = "\uE74F";
+                _volume.SetIcon(OrlaIcon.VolumeMuted);
                 _volume.Foreground = Ui.ErrorBrush;
-                SetButtonDescription(_volumeButton, Loc.Sound + " • " + Loc.TemporarilyUnavailable);
+                volumeDescription = Loc.Sound + " • " + Loc.TemporarilyUnavailable;
             }
             else
             {
                 int volume = state.Audio.VolumePercent;
-                _volume.Text = StatusGlyphs.Volume(volume, state.Audio.IsMuted);
+                _volume.SetIcon(StatusIcons.Volume(volume, state.Audio.IsMuted));
                 _volume.Foreground = state.Audio.IsMuted ? Ui.SecondaryTextBrush : Ui.PrimaryTextBrush;
-                SetButtonDescription(_volumeButton, Loc.VolumeStatus(volume, state.Audio.IsMuted));
+                volumeDescription = Loc.VolumeStatus(volume, state.Audio.IsMuted);
             }
 
             BatterySnapshot battery = state.Battery;
             if (!battery.HasBattery)
             {
-                _batteryGlyph.Text = "\uE83F";
+                _batteryGlyph.SetBatteryState(0, false);
                 _batteryGlyph.Foreground = Ui.SecondaryTextBrush;
                 _batteryPercent.Text = "AC";
             }
             else
             {
-                _batteryGlyph.Text = StatusGlyphs.Battery(battery);
+                _batteryGlyph.SetBatteryState(battery.Percent, true);
                 _batteryGlyph.Foreground = battery.IsCharging ? Ui.SuccessBrush
                     : battery.Percent <= 20 ? Ui.ErrorBrush : Ui.PrimaryTextBrush;
                 _batteryPercent.Text = battery.Percent.ToString(Loc.FormattingCulture) + "%";
             }
-            SetButtonDescription(_batteryButton, Loc.BatteryStatus(battery));
+            string batteryDescription = Loc.BatteryStatus(battery);
 
-            _bluetoothButton.Visibility = state.Bluetooth.IsEnabled ? Visibility.Visible : Visibility.Collapsed;
+            _bluetoothSlot.Visibility = state.Bluetooth.IsEnabled ? Visibility.Visible : Visibility.Collapsed;
+            string bluetoothDescription = null;
             if (state.Bluetooth.IsEnabled)
             {
                 _bluetooth.Foreground = state.Bluetooth.IsConnected ? Ui.AccentBrush : Ui.SecondaryTextBrush;
-                SetButtonDescription(_bluetoothButton, Loc.BluetoothStatus(state.Bluetooth));
+                bluetoothDescription = Loc.BluetoothStatus(state.Bluetooth);
             }
+
+            List<string> descriptions = new List<string> { networkDescription, volumeDescription, batteryDescription };
+            if (!string.IsNullOrEmpty(bluetoothDescription)) descriptions.Add(bluetoothDescription);
+            SetButtonDescription(_statusButton, string.Join(" • ", descriptions.ToArray()));
         }
 
         private static void SetButtonDescription(Button button, string description)
@@ -1922,14 +1931,26 @@ namespace Orla
             return text;
         }
 
-        internal static void ConfigureStatusGlyph(TextBlock glyph, double fontSize)
+        internal static VectorIcon Vector(OrlaIcon icon, string accessibleName, double size)
         {
-            glyph.FontSize = fontSize;
-            glyph.Width = 18;
-            glyph.Height = 18;
-            glyph.TextAlignment = TextAlignment.Center;
-            glyph.HorizontalAlignment = HorizontalAlignment.Center;
-            glyph.VerticalAlignment = VerticalAlignment.Center;
+            VectorIcon vector = new VectorIcon(icon, size, PrimaryTextBrush, accessibleName);
+            System.Windows.Controls.ToolTipService.SetToolTip(vector, accessibleName);
+            return vector;
+        }
+
+        internal static void AnimateBrush(SolidColorBrush brush, Color target, int durationMs)
+        {
+            if (brush == null) return;
+            if (!SystemParameters.ClientAreaAnimation)
+            {
+                brush.BeginAnimation(SolidColorBrush.ColorProperty, null);
+                brush.Color = target;
+                return;
+            }
+
+            ColorAnimation animation = new ColorAnimation(brush.Color, target, TimeSpan.FromMilliseconds(durationMs));
+            animation.EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut };
+            brush.BeginAnimation(SolidColorBrush.ColorProperty, animation, HandoffBehavior.SnapshotAndReplace);
         }
 
         internal static FrameworkElement DesktopGlyph()

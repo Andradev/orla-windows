@@ -25,36 +25,26 @@ namespace Orla
         }
     }
 
-    // Uma única tabela de glifos mantém topbar e painel visualmente idênticos.
-    // As faixas seguem os símbolos de estado fornecidos pelo Windows.
-    internal static class StatusGlyphs
+    // Uma única tabela semântica mantém topbar e painel no mesmo sistema
+    // vetorial, independentemente de fonte instalada ou escala de tela.
+    internal static class StatusIcons
     {
-        internal static string Network(NetworkSnapshot state)
+        internal static OrlaIcon Network(NetworkSnapshot state)
         {
-            if (state == null || !state.IsAvailable) return "\uEB5A";
-            if (!state.IsWifi) return "\uE839";
-            if (state.SignalQuality < 0) return "\uE701";
-            if (state.SignalQuality <= 25) return "\uE872";
-            if (state.SignalQuality <= 60) return "\uE873";
-            return "\uE874";
+            if (state == null || !state.IsAvailable) return OrlaIcon.WifiOff;
+            if (!state.IsWifi) return OrlaIcon.Ethernet;
+            if (state.SignalQuality < 0) return OrlaIcon.WifiMedium;
+            if (state.SignalQuality <= 25) return OrlaIcon.WifiLow;
+            if (state.SignalQuality <= 60) return OrlaIcon.WifiMedium;
+            return OrlaIcon.WifiHigh;
         }
 
-        internal static string Volume(int percent, bool muted)
+        internal static OrlaIcon Volume(int percent, bool muted)
         {
-            if (muted) return "\uE74F";
-            if (percent <= 0) return "\uE992";
-            if (percent <= 33) return "\uE993";
-            if (percent <= 66) return "\uE994";
-            return "\uE995";
-        }
-
-        internal static string Battery(BatterySnapshot state)
-        {
-            if (state == null || !state.HasBattery) return "\uE83F";
-            int level = Math.Max(0, Math.Min(9, state.Percent / 10));
-            if (state.IsCharging)
-                return state.Percent >= 95 ? "\uE83E" : ((char)(0xE85A + Math.Min(8, level))).ToString();
-            return ((char)(0xE850 + level)).ToString();
+            if (muted) return OrlaIcon.VolumeMuted;
+            if (percent <= 0) return OrlaIcon.VolumeZero;
+            if (percent <= 50) return OrlaIcon.VolumeLow;
+            return OrlaIcon.VolumeHigh;
         }
     }
 

@@ -33,11 +33,11 @@ O projeto nasceu de uma meta simples: manter a fluidez visual de um dock moderno
 - Fluent Search opcional: `Win` isolado alterna abrir/ocultar pelo canal local da própria instância, aceita toques rápidos em ordem e posiciona no monitor em uso sem salto visível;
 - botões do Fluent Search em cada tela sempre abrem a busca naquela tela;
 - `Win+Shift+S`, `Win+E`, `Win+D` e outras combinações continuam no Windows;
-- indicadores reais de Wi-Fi, volume, bateria e Bluetooth, sincronizados nas duas telas;
+- indicadores vetoriais reais de Wi-Fi, volume, bateria e Bluetooth, sincronizados nas duas telas e reunidos em uma única área interativa;
 - intensidade do Wi-Fi por API nativa, com estado desconectado explícito e sem leitura de SSID;
 - painel rápido em português, inglês ou espanhol conforme o idioma configurado no Windows;
 - painel com volume e mute locais; cartões de rede, Bluetooth e energia abrem diretamente a página correspondente das Configurações do Windows;
-- glifos de volume distintos para zero, baixo, médio, alto e mudo; o próprio ícone de som no painel também alterna mute;
+- ícones vetoriais consistentes para zero, baixo, alto e mudo; o próprio ícone de som no painel também alterna mute;
 - Bluetooth permanece configurável no painel quando desligado e só ocupa espaço na topbar quando está habilitado;
 - restauração explícita da barra nativa ao sair, desinstalar ou usar `--restore`.
 
@@ -95,7 +95,7 @@ Instalações antigas do VictorShell são migradas automaticamente: configuraç�
 | Borda inferior | Revela o dock daquele monitor |
 | `Win` isolado | Abre o Fluent Search no monitor do cursor |
 | Botão de busca | Abre o Fluent Search no monitor do botão |
-| Wi-Fi, som ou bateria na topbar | Abre o painel rápido naquela tela |
+| Conjunto de estados na topbar | Abre o painel rápido naquela tela com um único hover/clique |
 | Cartão de rede, Bluetooth ou energia | Abre a configuração específica do Windows |
 
 ## Configuração
@@ -134,7 +134,7 @@ Recuperação direta da barra nativa:
 
 ![Arquitetura do Orla](docs/images/architecture.svg)
 
-Orla é um executável WPF/.NET Framework x64 sem pacotes externos. Ele combina AppBar, enumeração de janelas, `SetWinEventHook` para foco, APIs nativas de áudio/WLAN/Bluetooth e um hook de teclado limitado ao `Win` isolado. Veja [Arquitetura](docs/ARCHITECTURE.md) e [Solução de problemas](docs/TROUBLESHOOTING.md).
+Orla é um executável WPF/.NET Framework x64 sem pacotes externos em tempo de execução. Ele combina AppBar, enumeração de janelas, `SetWinEventHook` para foco, APIs nativas de áudio/WLAN/Bluetooth, ícones vetoriais incorporados e um hook de teclado limitado ao `Win` isolado. Veja [Arquitetura](docs/ARCHITECTURE.md) e [Solução de problemas](docs/TROUBLESHOOTING.md).
 
 ## Build
 
@@ -158,6 +158,7 @@ O ícone do executável é gerado a partir de `docs\images\orla-mark.svg`. Para 
 - [Contribuindo](CONTRIBUTING.md)
 - [Segurança](SECURITY.md)
 - [Licença MIT](LICENSE)
+- [Avisos de terceiros](THIRD_PARTY_NOTICES.md)
 - [Releases](https://github.com/Andradev/orla-windows/releases)
 
 Orla é independente e não é afiliado à Apple, Microsoft, Seelen UI ou Fluent Search.
