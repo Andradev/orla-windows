@@ -28,8 +28,8 @@ using WpfEllipse = System.Windows.Shapes.Ellipse;
 [assembly: AssemblyCompany("Orla contributors")]
 [assembly: AssemblyProduct("Orla")]
 [assembly: AssemblyCopyright("MIT License")]
-[assembly: AssemblyVersion("1.2.3.0")]
-[assembly: AssemblyFileVersion("1.2.3.0")]
+[assembly: AssemblyVersion("1.2.4.0")]
+[assembly: AssemblyFileVersion("1.2.4.0")]
 
 namespace Orla
 {
@@ -2097,10 +2097,12 @@ namespace Orla
             ScaleTransform scale = new ScaleTransform(1.0, 1.0);
             button.RenderTransform = scale;
             button.RenderTransformOrigin = new System.Windows.Point(0.5, 0.5);
-            button.MouseEnter += delegate { AnimateScale(scale, 1.035, 120); };
-            button.MouseLeave += delegate { AnimateScale(scale, 1.0, 110); };
-            button.PreviewMouseLeftButtonDown += delegate { AnimateScale(scale, 0.94, 70); };
-            button.PreviewMouseLeftButtonUp += delegate { AnimateScale(scale, button.IsMouseOver ? 1.035 : 1.0, 105); };
+            // No hover o conteúdo permanece imóvel; o template fornece o
+            // realce de fundo. A escala existe somente como feedback de clique.
+            button.MouseLeave += delegate { AnimateScale(scale, 1.0, 85); };
+            button.PreviewMouseLeftButtonDown += delegate { AnimateScale(scale, 0.97, 65); };
+            button.PreviewMouseLeftButtonUp += delegate { AnimateScale(scale, 1.0, 90); };
+            button.LostMouseCapture += delegate { AnimateScale(scale, 1.0, 90); };
         }
 
         internal static void PlayDockBounce(Button button)
@@ -2162,12 +2164,12 @@ namespace Orla
             ControlTemplate template = new ControlTemplate(typeof(System.Windows.Controls.Button));
             template.VisualTree = border;
             Trigger over = new Trigger { Property = UIElement.IsMouseOverProperty, Value = true };
-            // WinUI SubtleFillColorSecondary (dark): #0FFFFFFF.
-            over.Setters.Add(new Setter(Control.BackgroundProperty, new SolidColorBrush(Color.FromArgb(15, 255, 255, 255))));
+            // WinUI ControlFillColorSecondary (dark): #15FFFFFF.
+            over.Setters.Add(new Setter(Control.BackgroundProperty, new SolidColorBrush(Color.FromArgb(21, 255, 255, 255))));
             template.Triggers.Add(over);
             Trigger pressed = new Trigger { Property = System.Windows.Controls.Button.IsPressedProperty, Value = true };
-            // WinUI SubtleFillColorTertiary (dark): #0AFFFFFF.
-            pressed.Setters.Add(new Setter(Control.BackgroundProperty, new SolidColorBrush(Color.FromArgb(10, 255, 255, 255))));
+            // WinUI ControlFillColorTertiary (dark): #08FFFFFF.
+            pressed.Setters.Add(new Setter(Control.BackgroundProperty, new SolidColorBrush(Color.FromArgb(8, 255, 255, 255))));
             template.Triggers.Add(pressed);
             return template;
         }
