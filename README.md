@@ -21,6 +21,7 @@ O projeto nasceu de uma meta simples: manter a fluidez visual de um dock moderno
 ## Recursos
 
 - uma topbar e um dock independentes em cada monitor;
+- identidade visual própria incorporada ao executável, derivada do símbolo oficial do projeto;
 - topbar registrada como AppBar, reservando espaço para não cobrir janelas maximizadas;
 - dock com ocultação automática e revelação em toda a borda inferior;
 - aplicativos abertos aparecem nos dois docks e janelas do mesmo app são agrupadas;
@@ -130,6 +131,8 @@ Orla é um executável WPF/.NET Framework x64 sem pacotes externos. Ele combina 
 ```
 
 O resultado fica em `dist\Orla.exe`. O binário da release é intencionalmente não assinado; confira o SHA-256 publicado ou compile localmente.
+
+O ícone do executável é gerado a partir de `docs\images\orla-mark.svg`. Para reconstruir `assets\orla.ico` após alterar o símbolo, execute `powershell -NoProfile -ExecutionPolicy Bypass -File .\tools\GenerateIcon.ps1`.
 
 ## Limitações
 

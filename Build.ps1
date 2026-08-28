@@ -7,6 +7,7 @@ $compiler = 'C:\Windows\Microsoft.NET\Framework64\v4.0.30319\csc.exe'
 $framework = 'C:\Windows\Microsoft.NET\Framework64\v4.0.30319'
 $wpf = Join-Path $framework 'WPF'
 $source = Join-Path $PSScriptRoot 'src\Orla.cs'
+$icon = Join-Path $PSScriptRoot 'assets\orla.ico'
 $output = Join-Path $OutputDirectory 'Orla.exe'
 
 if (-not (Test-Path -LiteralPath $compiler)) {
@@ -21,6 +22,7 @@ $arguments = @(
     '/platform:x64',
     '/optimize+',
     "/out:`"$output`"",
+    "/win32icon:`"$icon`"",
     "/reference:`"$(Join-Path $wpf 'PresentationCore.dll')`"",
     "/reference:`"$(Join-Path $wpf 'PresentationFramework.dll')`"",
     "/reference:`"$(Join-Path $wpf 'WindowsBase.dll')`"",
