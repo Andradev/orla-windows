@@ -1,48 +1,49 @@
-name: Propor uma melhoria
-description: Sugira uma melhoria pequena, leve e alinhada ao escopo do Orla.
-title: "[Melhoria]: "
+name: Feature request
+description: Suggest a focused, lightweight improvement aligned with Orla's scope.
+title: "[Feature]: "
 labels:
   - enhancement
 body:
   - type: textarea
     id: problem
     attributes:
-      label: Problema de uso
-      description: Explique a necessidade sem começar pela implementação.
+      label: User problem
+      description: Explain the need before describing an implementation.
     validations:
       required: true
   - type: textarea
     id: proposal
     attributes:
-      label: Solução proposta
+      label: Proposed solution
     validations:
       required: true
   - type: textarea
     id: alternatives
     attributes:
-      label: Alternativas consideradas
+      label: Alternatives considered
   - type: dropdown
     id: scope
     attributes:
-      label: Área principal
+      label: Primary area
       options:
-        - Dock
-        - Topbar
-        - Painel rápido
+        - Native taskbar integration
+        - Legacy dock
+        - Top bar
+        - Quick Panel
         - Multi-monitor
-        - Desempenho
-        - Instalação ou recuperação
-        - Documentação
+        - Performance
+        - Installation or recovery
+        - Documentation
     validations:
       required: true
   - type: checkboxes
     id: principles
     attributes:
-      label: Princípios
+      label: Project principles
       options:
-        - label: A proposta preserva execução sem administrador.
+        - label: The proposal preserves non-admin operation.
           required: true
-        - label: A proposta não exige serviço, injeção ou alteração de arquivos do Windows.
+        - label: The proposal does not require a service, injection, or Windows file modification.
           required: true
-        - label: A proposta considera custo de CPU e memória.
+        - label: The proposal considers CPU and memory cost.
           required: true

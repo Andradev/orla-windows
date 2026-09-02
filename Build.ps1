@@ -12,10 +12,10 @@ $icon = Join-Path $PSScriptRoot 'assets\orla.ico'
 $output = Join-Path $OutputDirectory 'Orla.exe'
 
 if (-not (Test-Path -LiteralPath $compiler)) {
-    throw 'Compilador .NET Framework 4.8 não encontrado.'
+    throw '.NET Framework 4.8 compiler not found.'
 }
 if ($sources.Count -eq 0) {
-    throw 'Nenhum arquivo-fonte C# foi encontrado em src.'
+    throw 'No C# source files were found in src.'
 }
 
 New-Item -ItemType Directory -Path $OutputDirectory -Force | Out-Null
@@ -52,7 +52,7 @@ if ($compilerOutput) {
     Write-Output $compilerOutput
 }
 if ($process.ExitCode -ne 0) {
-    throw "Compilação falhou com código $($process.ExitCode)."
+    throw "Compilation failed with exit code $($process.ExitCode)."
 }
 
 $item = Get-Item -LiteralPath $output

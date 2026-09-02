@@ -1,20 +1,20 @@
-## Objetivo
+## Goal
 
-Descreva o problema e por que esta mudança pertence ao escopo do Orla.
+Describe the user problem and why this change belongs in Orla.
 
-## Mudanças
+## Changes
 
-- <!-- Liste as mudanças principais. -->
+- <!-- List the main changes. -->
 
-## Validação
+## Verification
 
-- [ ] `tools\Verify-Repository.ps1` passou.
-- [ ] Testei restauração da taskbar com `Orla.exe --restore`.
-- [ ] Testei em Windows 10 ou 11 x64.
-- [ ] Para mudanças visuais, testei DPI e mais de um monitor quando aplicável.
-- [ ] Para mudanças no dock, testei ativar, minimizar, restaurar e arrastar.
-- [ ] Não incluí dados pessoais, nomes de rede, logs, tokens ou caminhos de usuário.
+- [ ] `tools\Verify-Repository.ps1` passes.
+- [ ] I tested taskbar restoration with `Orla.exe --restore`.
+- [ ] I tested on Windows 10 or 11 x64.
+- [ ] For taskbar changes, I tested install, startup, exit, and uninstall.
+- [ ] For visual changes, I tested applicable DPI scales and multiple displays.
+- [ ] I did not include personal data, network names, logs, tokens, or user paths.
 
-## Evidências
+## Evidence
 
-Inclua capturas sanitizadas, medições ou passos automatizados relevantes.
+Include sanitized screenshots, measurements, or relevant automated results.

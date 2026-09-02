@@ -1,8 +1,8 @@
 blank_issues_enabled: false
 contact_links:
-  - name: Dúvidas e ideias
+  - name: Questions and ideas
     url: https://github.com/Andradev/orla-windows/discussions
-    about: Use Discussions para suporte, configuração e ideias ainda não definidas.
-  - name: Vulnerabilidade de segurança
+    about: Use Discussions for support, configuration, and ideas that are not yet defined.
+  - name: Security vulnerability
     url: https://github.com/Andradev/orla-windows/security/advisories/new
-    about: Relate vulnerabilidades de forma privada.
+    about: Report vulnerabilities privately.

@@ -79,6 +79,8 @@ namespace Orla
         internal static string ShowDesktop { get { return T("Mostrar área de trabalho", "Show desktop", "Mostrar escritorio"); } }
         internal static string RecycleBin { get { return T("Lixeira", "Recycle Bin", "Papelera de reciclaje"); } }
         internal static string RestoreTaskbarAndExit { get { return T("Restaurar barra do Windows e sair", "Restore Windows taskbar and exit", "Restaurar la barra de Windows y salir"); } }
+        internal static string UseNativeTaskbar { get { return T("Usar barra nativa do Windows", "Use the native Windows taskbar", "Usar la barra de tareas nativa de Windows"); } }
+        internal static string UseLegacyOrlaDock { get { return T("Usar dock visual legado do Orla", "Use the legacy Orla visual dock", "Usar el dock visual heredado de Orla"); } }
 
         internal static string QuickPanelTitle { get { return T("Controles rápidos da Orla", "Orla quick controls", "Controles rápidos de Orla"); } }
         internal static string Controls { get { return T("Controles", "Controls", "Controles"); } }

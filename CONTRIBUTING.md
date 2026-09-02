@@ -1,38 +1,38 @@
-# Contribuindo
+# Contributing
 
-Obrigado pelo interesse no Orla. Toda participação está sujeita ao [Código de Conduta](CODE_OF_CONDUCT.md).
+Thank you for helping improve Orla. Participation is governed by the [Code of Conduct](CODE_OF_CONDUCT.md).
 
-## Escopo
+## Scope
 
-Mantenha a proposta do projeto: uma interface pequena, rápida e reversível, sem serviços, WebView residente, injeção em outros processos ou alteração de arquivos e políticas do Windows. Prefira APIs públicas ou documentadas e preserve o comportamento nativo dos atalhos `Win+...`.
+Orla should remain small, responsive, reversible, and native-first. Changes must not require a service, WebView, process injection, administrator rights, Windows file modification, or undocumented Explorer patching.
 
-Antes de uma mudança ampla de interface ou arquitetura, abra uma discussão para validar o encaixe no projeto.
+Explorer owns taskbar behavior in the default mode. Proposals that move window switching back into custom code need a clear reliability benefit and should remain optional.
 
-## Preparação
+Open a discussion before a broad interface or architecture change.
 
-1. Use Windows 10/11 x64, PowerShell 5.1+ e .NET Framework 4.8.
-2. Crie um fork e uma branch curta a partir de `main`.
-3. Faça mudanças pequenas e com uma finalidade clara.
-4. Não inclua caminhos de usuário, nomes de rede, empresa, tokens, logs, `settings.ini` ou binários não reproduzíveis.
+## Development setup
 
-## Verificação
+1. Use Windows 10/11 x64, PowerShell 5.1+, and .NET Framework 4.8.
+2. Fork the repository and create a short branch from `main`.
+3. Keep each change focused and reviewable.
+4. Do not commit user paths, network/company names, tokens, logs, `settings.ini`, or non-reproducible binaries.
 
-Execute antes de enviar:
+## Verification
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File .\tools\Verify-Repository.ps1
 ```
 
-O comando compila em uma pasta temporária, valida a versão, os SVGs, os links locais e o diff. Siga também a [matriz funcional](docs/TESTING.md), especialmente clique/minimização, Teams/WebView, atalhos nativos, restauração da taskbar e dois monitores quando a mudança alcançar essas áreas.
+Follow the relevant [acceptance matrix](docs/TESTING.md). Changes to installation or taskbar integration must verify first install, update, startup, exit, recovery, and uninstall. Resident changes must include CPU and memory observations.
 
-## Pull request
+## Pull requests
 
-Explique no pull request:
+Describe:
 
-- o problema e o comportamento esperado;
-- o que mudou e por quê;
-- como foi testado, incluindo monitores e DPI quando relevante;
-- impacto observado em CPU e memória para mudanças residentes;
-- capturas sem informações pessoais para alterações visuais.
+- the user problem and expected behavior;
+- what changed and why;
+- test hardware, Windows build, display count, and DPI when relevant;
+- CPU/memory impact for resident behavior;
+- sanitized screenshots for visual changes.
 
-Não misture refatorações não relacionadas. Um mantenedor pode pedir ajustes antes do merge mesmo quando o build estiver verde.
+Do not mix unrelated refactors. A green build is required but does not replace functional verification.

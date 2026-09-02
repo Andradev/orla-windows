@@ -1,32 +1,30 @@
-# Privacidade
+# Privacy
 
-Orla foi projetada para funcionar localmente e não contém telemetria, analytics,
-conta, sincronização em nuvem ou envio automático de relatórios.
+Orla is designed to work locally. It contains no telemetry, analytics, account system, cloud synchronization, advertising, or automatic report upload.
 
-## Dados lidos
+## Data read from Windows
 
-- janelas, processos e monitor em uso para montar o dock;
-- estado de rede, intensidade do Wi-Fi e nome da conexão ativa quando permitido pelo Windows;
-- volume, mute, bateria, Bluetooth, luz noturna e economia de energia;
-- brilho da tela integrada por WMI e de monitores externos por DDC/CI;
-- idioma de exibição e formato regional do Windows.
+- windows, processes, and active display for top-bar titles and the optional legacy dock;
+- network state, Wi-Fi strength, and the active connection name when Windows permits access;
+- volume, mute, battery, Bluetooth, Night light, and Energy saver state;
+- integrated-display brightness through WMI and external-display brightness through DDC/CI;
+- Windows display language and regional date/time format.
 
-Esses dados são usados somente na interface local. O nome da rede pode aparecer
-temporariamente no painel, mas não é gravado pela Orla.
+This information is used only for the local interface. A connection or device name may appear temporarily in Quick Panel but is not written by Orla.
 
-## Dados armazenados
+## Data stored locally
 
-`%LOCALAPPDATA%\Orla\settings.ini` guarda somente preferências, caminho opcional
-do Fluent Search, favoritos e ordem do dock. Logs de diagnóstico ficam em
-`%LOCALAPPDATA%\Orla\Orla.log` e permanecem no computador.
+`%LOCALAPPDATA%\Orla\settings.ini` stores preferences, the optional Fluent Search path, and legacy-dock order/favorites. Diagnostic messages remain in `%LOCALAPPDATA%\Orla\Orla.log`.
 
-## Comunicação
+The installer writes two current-user registry entries:
 
-A integração com Fluent Search usa um named pipe local. Orla não inicia conexões
-de rede próprias. Links para Configurações do Windows, documentação ou GitHub só
-são abertos após uma ação explícita do usuário.
+- startup under `HKCU\Software\Microsoft\Windows\CurrentVersion\Run`;
+- uninstall metadata under `HKCU\Software\Microsoft\Windows\CurrentVersion\Uninstall\Orla`.
 
-## Remoção
+## Communication
 
-`Uninstall.ps1` remove o executável, a inicialização automática e, por padrão,
-os dados locais. Use `-KeepSettings` somente se quiser preservar configuração e log.
+Fluent Search integration uses a local named pipe. Orla creates no network connection of its own. Windows Settings, documentation, and GitHub links open only after an explicit user action.
+
+## Removal
+
+The built-in uninstaller removes the executable, startup registration, uninstall metadata, settings, and log. `--keep-settings` preserves the INI and log. Taskbar state is always restored and its temporary recovery file removed.

@@ -1,55 +1,66 @@
-# Testes
+# Testing
 
-## Verificação rápida
+## Repository verification
 
-Em Windows 10/11 x64 com .NET Framework 4.8:
+On Windows 10/11 x64 with .NET Framework 4.8:
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File .\tools\Verify-Repository.ps1
 ```
 
-O verificador compila o executável em uma pasta temporária, confirma a versão,
-valida todos os SVGs e detecta links locais quebrados nos arquivos Markdown.
+The verifier builds into a unique temporary directory, checks the executable version, validates accessible SVG XML, checks local Markdown links, and runs `git diff --check` in native Windows environments.
 
-## Matriz funcional mínima
+## Native-mode acceptance matrix
 
-### Dock
+- start with no `settings.ini` and confirm `TaskbarMode=Native` is created;
+- migrate a v1 settings file and confirm it receives format 3 and native mode;
+- confirm Windows owns task buttons, grouping, previews, jump lists, badges, and notifications;
+- activate, minimize, restore, pin, unpin, and reorder apps through the native taskbar;
+- test Teams/WebView, packaged apps, elevated apps, and apps with multiple windows;
+- reveal the native taskbar from any point on the bottom edge;
+- exit and run `--restore`, confirming the user's original auto-hide state returns;
+- sign out/restart and confirm no custom-dock/native-taskbar race occurs.
 
-- revelar por qualquer ponto da borda inferior de cada monitor;
-- ativar, minimizar e restaurar o mesmo app repetidamente;
-- alternar entre apps Win32, Teams/WebView e aplicativos com mais de uma janela;
-- clicar próximo às quatro bordas do botão;
-- reorganizar por arrastar sem disparar um clique;
-- validar indicador azul, menu de contexto e Lixeira.
+## Orla-owned surfaces
 
-### Topbar e painel
+- validate one top bar on every display and correct AppBar work areas;
+- check display language plus independent 12/24-hour and regional date formatting;
+- open/close Quick Panel repeatedly by button, outside click, and `Esc`;
+- toggle Wi-Fi, Bluetooth, and mute, then confirm the state is reread from Windows;
+- test integrated brightness and DDC/CI when hardware supports it;
+- open/close the hidden-icons flyout twice in succession;
+- confirm `Win+Shift+S`, `Win+E`, `Win+D`, and other combinations remain native.
 
-- conferir idioma, relógio 12/24 horas e data regional;
-- alternar Wi-Fi, Bluetooth e mute e reler o estado real;
-- verificar bateria, brilho integrado e DDC/CI quando disponível;
-- abrir e fechar ícones ocultos duas vezes seguidas;
-- confirmar que `Win+Shift+S`, `Win+E` e outros atalhos permanecem nativos.
+## Installation and update
 
-### Multi-monitor
+- double-click a downloaded executable with no prior installation;
+- decline and accept the confirmation separately;
+- verify `%LOCALAPPDATA%\Orla\Orla.exe`, the startup entry, and Installed Apps metadata;
+- run the same downloaded file again and confirm it redirects without prompting;
+- run a different version and confirm the update prompt and atomic `.incoming` replacement;
+- uninstall through Installed Apps and through `--uninstall --silent`;
+- repeat uninstall with `--keep-settings`.
 
-- testar escalas de DPI iguais e diferentes;
-- maximizar janelas em cada tela e conferir a área reservada da AppBar;
-- remover/reconectar uma tela e reiniciar a sessão;
-- confirmar listas e ordem iguais, com posicionamento independente.
+## Multi-monitor
 
-## Desempenho
+- test identical and mixed DPI scales;
+- maximize windows on each display and check the top reserved work area;
+- disconnect/reconnect a display and restart the session;
+- verify the native taskbar behavior selected in Windows for multiple displays.
+
+## Performance
 
 ```powershell
 .\tools\Measure-Performance.ps1 -ProcessName Orla -DurationSeconds 600
 ```
 
-Registre hardware, versão do Windows, número de monitores, DPI, duração e carga
-de trabalho. Resultados isolados não devem ser apresentados como garantia universal.
+Record hardware, Windows build, Orla mode, display count, DPI, duration, and workload. Compare native and legacy modes separately; isolated results are not universal guarantees.
 
-## Release
+## Release checklist
 
-1. Atualize versão, `CHANGELOG.md` e notas em `dist\release-notes-vX.Y.Z.md`.
-2. Execute o verificador e os testes funcionais.
-3. Crie uma tag anotada `vX.Y.Z`.
-4. O workflow de release recompila, gera SHA-256 e publica os artefatos.
-5. Baixe a release e valide `Orla.exe.sha256` antes de marcá-la como estável.
+1. Update assembly version, `CHANGELOG.md`, `CITATION.cff`, and `dist\release-notes-vX.Y.Z.md`.
+2. Run repository verification and the applicable acceptance matrix.
+3. Verify installation, update, uninstall, and taskbar restoration on a real Windows session.
+4. Create an annotated semantic-version tag.
+5. Let the release workflow rebuild and publish `Orla.exe` plus SHA-256.
+6. Download both assets and verify the checksum before marking the release stable.

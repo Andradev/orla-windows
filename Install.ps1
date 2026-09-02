@@ -6,74 +6,47 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
-$installDirectory = Join-Path $env:LOCALAPPDATA 'Orla'
-$installedExe = Join-Path $installDirectory 'Orla.exe'
-$legacyDirectory = Join-Path $env:LOCALAPPDATA 'VictorShell'
-$legacyExe = Join-Path $legacyDirectory 'VictorShell.exe'
 $runKey = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Run'
 
 if ($env:OS -ne 'Windows_NT') {
-    throw 'Orla só pode ser instalado no Windows.'
-}
-
-Get-Process Orla, VictorShell -ErrorAction SilentlyContinue | Stop-Process -Force
-Start-Sleep -Milliseconds 300
-foreach ($restorableExe in @($installedExe, $legacyExe)) {
-    if (Test-Path -LiteralPath $restorableExe) {
-        $restore = Start-Process -FilePath $restorableExe -ArgumentList '--restore' -PassThru -Wait
-        if ($restore.ExitCode -ne 0) { throw "Falha ao restaurar a barra nativa: $($restore.ExitCode)" }
-    }
+    throw 'Orla can only be installed on Windows.'
 }
 
 if (-not $SkipBuild -and [string]::IsNullOrWhiteSpace($SourceExecutable)) {
     & (Join-Path $PSScriptRoot 'Build.ps1')
 }
+
 $sourceExe = if ([string]::IsNullOrWhiteSpace($SourceExecutable)) {
     Join-Path $PSScriptRoot 'dist\Orla.exe'
 } else {
     [IO.Path]::GetFullPath($SourceExecutable)
 }
+
 if (-not (Test-Path -LiteralPath $sourceExe)) {
-    throw "Executável de origem não encontrado: $sourceExe"
+    throw "Source executable not found: $sourceExe"
 }
 
-New-Item -ItemType Directory -Path $installDirectory -Force | Out-Null
-if (-not (Test-Path -LiteralPath (Join-Path $installDirectory 'settings.ini')) -and
-    (Test-Path -LiteralPath (Join-Path $legacyDirectory 'settings.ini'))) {
-    Copy-Item -LiteralPath (Join-Path $legacyDirectory 'settings.ini') -Destination (Join-Path $installDirectory 'settings.ini')
+$installer = Start-Process -FilePath $sourceExe -ArgumentList @('--install', '--silent') -PassThru -Wait
+if ($installer.ExitCode -ne 0) {
+    throw "Orla installer exited with code $($installer.ExitCode)."
 }
-$settingsPath = Join-Path $installDirectory 'settings.ini'
-if (Test-Path -LiteralPath $settingsPath) {
-    $settingsLines = [IO.File]::ReadAllLines($settingsPath, [Text.Encoding]::UTF8)
-    if ($settingsLines.Count -gt 0 -and $settingsLines[0] -like '# Victor Shell*') {
-        $settingsLines[0] = '# Orla - configuração simples e reversível'
-    }
-    $settingsLines = @($settingsLines | Where-Object { $_ -notlike 'FluentSearchHotkey=*' })
-    [IO.File]::WriteAllLines($settingsPath, $settingsLines, [Text.Encoding]::UTF8)
-}
-Copy-Item -LiteralPath $sourceExe -Destination $installedExe -Force
-# Versões antigas copiavam o fonte monolítico para a pasta instalada. O
-# executável não depende desse arquivo; removê-lo mantém a instalação enxuta.
-Remove-Item -LiteralPath (Join-Path $installDirectory 'Orla.cs') -Force -ErrorAction SilentlyContinue
-Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'README.md') -Destination (Join-Path $installDirectory 'README.md') -Force
-Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'LICENSE') -Destination (Join-Path $installDirectory 'LICENSE') -Force
 
-Remove-ItemProperty -Path $runKey -Name 'VictorShell' -ErrorAction SilentlyContinue
+$installedExe = Join-Path $env:LOCALAPPDATA 'Orla\Orla.exe'
+if (-not (Test-Path -LiteralPath $installedExe)) {
+    throw "The installed executable was not created: $installedExe"
+}
+
 if ($NoStartup) {
     Remove-ItemProperty -Path $runKey -Name 'Orla' -ErrorAction SilentlyContinue
-} else {
-    New-Item -Path $runKey -Force | Out-Null
-    Set-ItemProperty -Path $runKey -Name 'Orla' -Type String -Value ('"' + $installedExe + '" --startup')
 }
 
-if (-not $DoNotStart) {
-    Start-Process -FilePath $installedExe
-    Start-Sleep -Seconds 2
+if ($DoNotStart) {
+    Get-CimInstance Win32_Process -Filter "Name = 'Orla.exe'" -ErrorAction SilentlyContinue |
+        Where-Object { $_.ExecutablePath -eq $installedExe } |
+        ForEach-Object { Stop-Process -Id $_.ProcessId -Force }
 }
 
 $hash = (Get-FileHash -LiteralPath $installedExe -Algorithm SHA256).Hash
-Write-Output "Orla instalado em: $installedExe"
-Write-Output "SHA256: $hash"
-if (-not (Test-Path 'C:\Program Files\Fluent Search\FluentSearch.exe')) {
-    Write-Warning 'Fluent Search não foi encontrado; a tecla Windows nativa será preservada.'
-}
+Write-Output "Orla installed at: $installedExe"
+Write-Output "SHA-256: $hash"
+Write-Output "Starts with Windows: $(-not $NoStartup)"

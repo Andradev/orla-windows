@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1440 720" role="img" aria-labelledby="title desc">
-  <title id="title">Orla em dois monitores</title>
-  <desc id="desc">Ilustração da topbar e do dock do Orla funcionando de forma consistente em dois monitores.</desc>
+  <title id="title">Orla across two displays</title>
+  <desc id="desc">Orla top bars and the native Windows taskbar working consistently across two displays.</desc>
   <defs>
     <linearGradient id="page" x1="80" y1="30" x2="1360" y2="690" gradientUnits="userSpaceOnUse">
       <stop stop-color="#151923"/>
@@ -27,8 +27,8 @@
   <rect width="1440" height="720" rx="28" fill="url(#glow)"/>
 
   <g font-family="Segoe UI, Inter, sans-serif">
-    <text x="86" y="86" fill="#F5F7FA" font-size="42" font-weight="650">Uma interface. Todas as telas.</text>
-    <text x="88" y="124" fill="#A7AFBE" font-size="19">Topbar reservada, dock inteligente e foco imediato — em um único processo.</text>
+    <text x="86" y="86" fill="#F5F7FA" font-size="42" font-weight="650">One interface. Every display.</text>
+    <text x="88" y="124" fill="#A7AFBE" font-size="19">Reserved top bars, native taskbar behavior, and quick controls — in one process.</text>
   </g>
 
   <g filter="url(#shadow)">
@@ -38,19 +38,20 @@
     <rect x="104" y="196" width="800" height="13" fill="#1C1C1F"/>
     <circle cx="124" cy="194" r="6" fill="#0A84FF"/>
     <text x="141" y="199" fill="#F4F4F6" font-family="Segoe UI, sans-serif" font-size="12" font-weight="600">Zen Browser</text>
-    <text x="486" y="199" fill="#F4F4F6" font-family="Segoe UI, sans-serif" font-size="12" font-weight="600">12:34 · qua., 27 de agosto</text>
+    <text x="486" y="199" fill="#F4F4F6" font-family="Segoe UI, sans-serif" font-size="12" font-weight="600">12:34 · Wednesday, August 27</text>
     <g fill="#D9DCE3">
       <circle cx="842" cy="194" r="4"/><rect x="854" y="189" width="10" height="10" rx="3"/><rect x="875" y="189" width="15" height="10" rx="3"/>
     </g>
     <path d="M104 406c106-96 195-101 284-23 86 76 173 66 252-17 77-82 165-81 264-8v238H104z" fill="#0A84FF" opacity=".10"/>
     <path d="M104 484c132-71 237-56 330 31 82 77 191 69 270 1 65-56 132-72 200-51v131H104z" fill="#5E5CE6" opacity=".10"/>
-    <rect x="356" y="526" width="296" height="56" rx="20" fill="#1E1E23" fill-opacity=".96" stroke="#FFFFFF" stroke-opacity=".14"/>
+    <rect x="104" y="548" width="800" height="48" fill="#1E1E23" fill-opacity=".96" stroke="#FFFFFF" stroke-opacity=".14"/>
     <g>
-      <circle cx="390" cy="553" r="17" fill="#0A84FF"/><path d="M384 553h12M390 547v12" stroke="white" stroke-width="2" stroke-linecap="round"/>
-      <rect x="423" y="536" width="34" height="34" rx="9" fill="#F0C248"/><rect x="465" y="536" width="34" height="34" rx="9" fill="#6157D9"/>
-      <rect x="507" y="536" width="34" height="34" rx="9" fill="#22A06B"/><rect x="549" y="536" width="34" height="34" rx="9" fill="#E85D75"/>
-      <rect x="591" y="536" width="34" height="34" rx="9" fill="#5AC8FA"/>
-      <circle cx="524" cy="576" r="3.5" fill="#0A84FF"/>
+      <circle cx="390" cy="571" r="15" fill="#0A84FF"/><path d="M384 571h12M390 565v12" stroke="white" stroke-width="2" stroke-linecap="round"/>
+      <rect x="423" y="556" width="30" height="30" rx="7" fill="#F0C248"/><rect x="461" y="556" width="30" height="30" rx="7" fill="#6157D9"/>
+      <rect x="499" y="556" width="30" height="30" rx="7" fill="#22A06B"/><rect x="537" y="556" width="30" height="30" rx="7" fill="#E85D75"/>
+      <rect x="575" y="556" width="30" height="30" rx="7" fill="#5AC8FA"/>
+      <circle cx="514" cy="591" r="2.5" fill="#0A84FF"/>
+      <circle cx="844" cy="571" r="4" fill="#D9DCE3"/><rect x="856" y="566" width="10" height="10" rx="3" fill="#D9DCE3"/><rect x="877" y="566" width="15" height="10" rx="3" fill="#D9DCE3"/>
     </g>
     <path d="M464 614h80l18 34H446z" fill="#262A33"/>
     <rect x="400" y="647" width="208" height="12" rx="6" fill="#303542"/>
@@ -65,21 +66,21 @@
     <text x="934" y="283" fill="#F4F4F6" font-family="Segoe UI, sans-serif" font-size="11" font-weight="600">Codex</text>
     <text x="1114" y="283" fill="#F4F4F6" font-family="Segoe UI, sans-serif" font-size="11" font-weight="600">12:34</text>
     <path d="M898 410c94-56 176-44 241 24 57 60 123 67 199 22v84H898z" fill="#0A84FF" opacity=".12"/>
-    <rect x="1024" y="482" width="188" height="45" rx="17" fill="#1E1E23" fill-opacity=".96" stroke="#FFFFFF" stroke-opacity=".14"/>
-    <circle cx="1052" cy="504" r="13" fill="#0A84FF"/>
-    <rect x="1074" y="491" width="26" height="26" rx="7" fill="#F0C248"/><rect x="1107" y="491" width="26" height="26" rx="7" fill="#6157D9"/>
-    <rect x="1140" y="491" width="26" height="26" rx="7" fill="#22A06B"/><rect x="1173" y="491" width="26" height="26" rx="7" fill="#E85D75"/>
-    <circle cx="1120" cy="523" r="3" fill="#0A84FF"/>
+    <rect x="898" y="506" width="440" height="34" fill="#1E1E23" fill-opacity=".96" stroke="#FFFFFF" stroke-opacity=".14"/>
+    <circle cx="1052" cy="522" r="11" fill="#0A84FF"/>
+    <rect x="1074" y="511" width="22" height="22" rx="6" fill="#F0C248"/><rect x="1103" y="511" width="22" height="22" rx="6" fill="#6157D9"/>
+    <rect x="1132" y="511" width="22" height="22" rx="6" fill="#22A06B"/><rect x="1161" y="511" width="22" height="22" rx="6" fill="#E85D75"/>
+    <circle cx="1114" cy="537" r="2" fill="#0A84FF"/>
     <path d="M1082 556h72l14 28h-100z" fill="#262A33"/>
     <rect x="1038" y="583" width="160" height="10" rx="5" fill="#303542"/>
   </g>
 
   <g font-family="Segoe UI, Inter, sans-serif">
     <rect x="88" y="674" width="136" height="28" rx="14" fill="#0A84FF" fill-opacity=".15" stroke="#0A84FF" stroke-opacity=".5"/>
-    <text x="156" y="693" text-anchor="middle" fill="#7FC8FF" font-size="13" font-weight="600">1 processo</text>
+    <text x="156" y="693" text-anchor="middle" fill="#7FC8FF" font-size="13" font-weight="600">one process</text>
     <rect x="236" y="674" width="166" height="28" rx="14" fill="#32D74B" fill-opacity=".12" stroke="#32D74B" stroke-opacity=".45"/>
     <text x="319" y="693" text-anchor="middle" fill="#7BEA8C" font-size="13" font-weight="600">multi-monitor</text>
     <rect x="414" y="674" width="140" height="28" rx="14" fill="#BF5AF2" fill-opacity=".12" stroke="#BF5AF2" stroke-opacity=".45"/>
-    <text x="484" y="693" text-anchor="middle" fill="#D99AF8" font-size="13" font-weight="600">reversível</text>
+    <text x="484" y="693" text-anchor="middle" fill="#D99AF8" font-size="13" font-weight="600">native-first</text>
   </g>
 </svg>

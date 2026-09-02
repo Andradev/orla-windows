@@ -30,8 +30,8 @@ namespace Orla
         }
     }
 
-    // Uma única tabela semântica mantém topbar e painel no mesmo sistema
-    // vetorial, independentemente de fonte instalada ou escala de tela.
+    // One semantic table keeps the top bar and panel in the same vector system,
+    // independent of installed fonts or display scaling.
     internal static class StatusIcons
     {
         internal static OrlaIcon Network(NetworkSnapshot state)
@@ -53,8 +53,8 @@ namespace Orla
         }
     }
 
-    // As inscrições existem apenas durante a vida do Quick Panel e são sempre
-    // removidas no Dispose para não manter a janela viva por eventos estáticos.
+    // Subscriptions exist only during the Quick Panel lifetime and are always
+    // removed in Dispose so static events cannot keep the window alive.
     internal sealed class NetworkStatusService : IDisposable
     {
         private bool _disposed;
@@ -109,7 +109,7 @@ namespace Orla
             }
             catch (Exception exception)
             {
-                Logger.Write("Falha ao consultar rede: " + exception.Message);
+                Logger.Write("Could not query network status: " + exception.Message);
                 return new NetworkSnapshot(false, false, -1, Loc.NetworkStatus,
                     Loc.TemporarilyUnavailable, string.Empty);
             }
@@ -152,7 +152,7 @@ namespace Orla
             EventHandler handler = StateChanged;
             if (handler == null) return;
             try { handler(this, EventArgs.Empty); }
-            catch (Exception exception) { Logger.Write("Falha ao entregar evento de rede: " + exception.Message); }
+            catch (Exception exception) { Logger.Write("Could not deliver the network event: " + exception.Message); }
         }
 
         public void Dispose()
@@ -248,7 +248,7 @@ namespace Orla
             }
             catch (Exception exception)
             {
-                Logger.Write("Falha ao consultar Bluetooth: " + exception.Message);
+                Logger.Write("Could not query Bluetooth: " + exception.Message);
                 return new BluetoothSnapshot(false, false, string.Empty);
             }
             finally
@@ -320,10 +320,10 @@ namespace Orla
                     byte[] data = key == null ? null : key.GetValue("Data") as byte[];
                     if (data == null || data.Length < 12) return false;
 
-                    // CloudStore contém dois envelopes Bond CompactBinary. No
-                    // segundo, o campo Int32 de id 0 existe somente quando a
-                    // Luz noturna está ativa. A leitura é estritamente passiva;
-                    // formatos desconhecidos retornam indisponível.
+                    // CloudStore contains two Bond CompactBinary envelopes. In
+                    // the second, Int32 field 0 exists only while Night light is
+                    // active. This is a strictly passive read; unknown formats
+                    // are reported as unavailable.
                     int envelopes = 0;
                     for (int index = 0; index <= data.Length - 5; index++)
                     {
@@ -373,9 +373,9 @@ namespace Orla
         }
     }
 
-    // Uma única instância atende todas as topbars. Rede e volume usam eventos;
-    // bateria, Bluetooth, ações rápidas e intensidade do Wi-Fi recebem uma
-    // leitura barata a cada 10 segundos para acompanhar mudanças sem evento.
+    // One instance serves every top bar. Network and volume are event-driven;
+    // battery, Bluetooth, quick actions, and Wi-Fi strength use one inexpensive
+    // read every ten seconds for changes without an event source.
     internal sealed class SystemStatusMonitor : IDisposable
     {
         private readonly object _sync = new object();
@@ -475,7 +475,7 @@ namespace Orla
             }
             catch (Exception exception)
             {
-                Logger.Write("Falha ao atualizar indicadores do sistema: " + exception.Message);
+                Logger.Write("Could not refresh system indicators: " + exception.Message);
                 return;
             }
             lock (_sync)
@@ -492,7 +492,7 @@ namespace Orla
             EventHandler handler = StateChanged;
             if (handler == null || _disposed) return;
             try { handler(this, EventArgs.Empty); }
-            catch (Exception exception) { Logger.Write("Falha ao entregar estado do sistema: " + exception.Message); }
+            catch (Exception exception) { Logger.Write("Could not deliver system status: " + exception.Message); }
         }
 
         public void Dispose()
@@ -528,9 +528,9 @@ namespace Orla
         }
     }
 
-    // Consulta RSSI e, quando a política de privacidade permitir, o nome do
-    // perfil conectado. Falhas de acesso ao nome preservam o sinal e não
-    // solicitam permissões adicionais ao usuário.
+    // Reads RSSI and, when privacy policy permits, the connected profile name.
+    // Failure to access the name preserves signal strength and does not request
+    // additional user permissions.
     internal static class NativeWifiSignal
     {
         private const int WlanInterfaceStateConnected = 1;
@@ -594,7 +594,7 @@ namespace Orla
             }
             catch (Exception exception)
             {
-                Logger.Write("Falha ao consultar intensidade do Wi-Fi: " + exception.Message);
+                Logger.Write("Could not query Wi-Fi signal strength: " + exception.Message);
             }
             finally
             {

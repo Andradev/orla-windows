@@ -15,8 +15,8 @@ namespace Orla
         }
     }
 
-    // O monitor compartilhado mantém uma instância; o Quick Panel cria outra
-    // somente enquanto está aberto. O callback substitui polling e é removido
+    // The shared monitor keeps one instance; Quick Panel creates another only
+    // while it is open. The callback replaces polling and is always removed.
     // antes de liberar os objetos COM.
     internal sealed class AudioService : IDisposable
     {
@@ -50,7 +50,7 @@ namespace Orla
             }
             catch (Exception exception)
             {
-                Logger.Write("Áudio nativo indisponível na Orla: " + exception.Message);
+                Logger.Write("Native audio is unavailable in Orla: " + exception.Message);
                 Dispose();
             }
         }
@@ -68,7 +68,7 @@ namespace Orla
             }
             catch (Exception exception)
             {
-                Logger.Write("Falha ao ler volume: " + exception.Message);
+                Logger.Write("Could not read volume: " + exception.Message);
                 return new AudioStateChangedEventArgs(0, false);
             }
         }
@@ -87,7 +87,7 @@ namespace Orla
             }
             catch (Exception exception)
             {
-                Logger.Write("Falha ao ajustar volume: " + exception.Message);
+                Logger.Write("Could not set volume: " + exception.Message);
             }
         }
 
@@ -106,7 +106,7 @@ namespace Orla
             }
             catch (Exception exception)
             {
-                Logger.Write("Falha ao alternar mute: " + exception.Message);
+                Logger.Write("Could not toggle mute: " + exception.Message);
             }
         }
 
@@ -127,7 +127,7 @@ namespace Orla
             }
             catch (Exception exception)
             {
-                Logger.Write("Falha ao entregar evento de volume: " + exception.Message);
+                Logger.Write("Could not deliver the volume event: " + exception.Message);
             }
         }
 

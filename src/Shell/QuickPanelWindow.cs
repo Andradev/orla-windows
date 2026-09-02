@@ -10,8 +10,8 @@ using Forms = System.Windows.Forms;
 
 namespace Orla
 {
-    // Janela deliberadamente transitória: serviços, callbacks e timer existem
-    // somente entre Show e Closed. Nenhum conteúdo fica escondido em memória.
+    // Deliberately transient window: services, callbacks, and timers exist only
+    // between Show and Closed. No hidden panel content remains in memory.
     internal sealed class QuickPanelWindow : Window, IDisposable
     {
         private readonly string _screenDeviceName;
@@ -58,8 +58,8 @@ namespace Orla
             _screenDeviceName = screenDeviceName;
             _statusMonitor = statusMonitor;
             Title = Loc.QuickPanelTitle;
-            // 316 px de conteúdo + 28 px de padding + 2 px de borda.
-            // A largura anterior de 344 px recortava a borda direita em DPI fracionário.
+            // 316 px of content + 28 px of padding + 2 px of border.
+            // The former 344 px width clipped the right edge at fractional DPI.
             Width = 346;
             SizeToContent = SizeToContent.Height;
             MaxHeight = 620;
@@ -401,10 +401,10 @@ namespace Orla
 
         private void OnDeactivated(object sender, EventArgs eventArgs)
         {
-            // A topbar não ativa a si mesma, mas o Windows pode entregar uma
-            // transição de foco logo após Show/Activate. Adie a verificação,
-            // mas não descarte o evento: um clique externo rápido também deve
-            // fechar o painel assim que a estabilização inicial terminar.
+            // The top bar does not activate itself, but Windows can deliver a
+            // focus transition immediately after Show/Activate. Delay the check
+            // without dropping it: a quick outside click must still close the
+            // panel as soon as initial focus settles.
             double elapsed = (DateTime.UtcNow - _shownAt).TotalMilliseconds;
             _deactivationTimer.Stop();
             _deactivationTimer.Interval = TimeSpan.FromMilliseconds(Math.Max(1, 600 - elapsed));
@@ -704,7 +704,7 @@ namespace Orla
             }
             catch (Exception exception)
             {
-                Logger.Write("Falha ao atualizar Bluetooth do painel: " + exception.Message);
+                Logger.Write("Could not update Bluetooth in Quick Panel: " + exception.Message);
                 _bluetoothSurface.Visibility = Visibility.Visible;
                 _bluetoothTitle.Text = Loc.Bluetooth;
                 _bluetoothDetail.Text = Loc.TemporarilyUnavailable;
@@ -757,8 +757,8 @@ namespace Orla
         }
     }
 
-    // Slider desenhado em uma única superfície. Mantém a semântica e o
-    // AutomationPeer do Slider, sem a árvore visual do template padrão.
+    // Slider drawn as a single surface. It retains Slider semantics and its
+    // AutomationPeer without the standard template's larger visual tree.
     internal sealed class LightweightSlider : Slider
     {
         private static readonly Brush TrackBrush = FrozenBrush(Color.FromRgb(82, 82, 88));

@@ -1,53 +1,69 @@
-# Solução de problemas
+# Troubleshooting
 
-## A barra nativa não voltou
+## The Windows taskbar did not return
 
 ```powershell
 %LOCALAPPDATA%\Orla\Orla.exe --restore
 ```
 
-Se o arquivo não existir, reinicie o Explorer pelo Gerenciador de Tarefas ou faça logoff/login.
+If the file no longer exists, restart Windows Explorer from Task Manager or sign out and back in. Orla 2 uses the native taskbar by default, so this recovery is mainly relevant to legacy `OrlaDock` mode.
 
-## Fluent Search não abre ou aparece na tela errada
+## I want the original floating dock
 
-1. Confirme `FluentSearchPath` em `%LOCALAPPDATA%\Orla\settings.ini`.
-2. Confirme `BareWindowsKeyOpensFluent=true`.
-3. Clique no botão de busca da tela desejada; Orla pede a abertura pelo canal local do Fluent e só então posiciona a janela nessa tela.
-4. Se o processo do Fluent estiver iniciando, aguarde alguns segundos e tente novamente.
+Right-click an Orla top bar and choose **Use the legacy Orla visual dock**, or set:
 
-Sem Fluent Search instalado, a tecla Windows permanece nativa.
+```ini
+TaskbarMode=OrlaDock
+```
 
-## Um aplicativo elevado não recebe foco
+Legacy mode is optional and cannot reproduce every private Explorer behavior. Switch back through the same menu when reliability is more important than the floating shape.
 
-O Windows impede que processos normais controlem janelas elevadas. Execute ambos no mesmo nível. Não inicie Orla como administrador apenas para contornar essa proteção.
+## The taskbar does not auto-hide
 
-## O dock não aparece
+Confirm the following value in `%LOCALAPPDATA%\Orla\settings.ini`:
 
-Encoste o mouse na última linha de pixels da borda inferior do monitor. A detecção ocorre em até 100 ms e a transição visual termina em 160 ms.
+```ini
+NativeTaskbarAutoHide=true
+```
 
-## Wi-Fi, Bluetooth ou bateria mostram um estado inesperado
+Orla requests auto-hide through the documented Shell AppBar API. Explorer remains responsible for the reveal animation and timing.
 
-Os indicadores refletem as APIs do Windows e podem levar até 10 segundos para acompanhar uma mudança externa. Abra o painel pelo ícone de rede, som ou bateria. O Bluetooth continua listado ali mesmo quando está desligado. Clique no corpo do cartão para alternar o rádio; use somente o chevron à direita para abrir sua página nas Configurações do Windows.
+## Fluent Search does not open or appears on the wrong display
 
-Na primeira alternância, o Windows pode solicitar acesso aos rádios. Se uma política corporativa negar `Windows.Devices.Radios`, o cartão permanece no estado confirmado pela releitura e as Configurações continuam disponíveis pelo chevron. Orla não altera a política.
+1. Confirm `FluentSearchPath` in `settings.ini`.
+2. Confirm `BareWindowsKeyOpensFluent=true`.
+3. Use the search button on the desired display.
+4. If Fluent Search is starting for the first time, wait a few seconds and try once more.
 
-O Wi-Fi mostra intensidade e, quando permitido, o nome da conexão ativa. Se a privacidade ou uma política do Windows restringir o nome, o painel mantém somente o sinal. Sem conexão ativa, o ícone e o texto mudam para o estado desconectado. Computadores sem bateria informada pelo firmware mostram alimentação externa.
+Without Fluent Search, the Windows key remains native.
 
-## O brilho funciona no notebook, mas não no monitor externo
+## An elevated application does not receive focus
 
-O monitor externo precisa oferecer DDC/CI e permitir esse comando no modo de imagem atual. No menu físico do monitor:
+Windows prevents normal processes from controlling elevated windows. Run both at the same integrity level. Do not run Orla as administrator solely to bypass this protection.
 
-1. habilite DDC/CI, quando houver essa opção;
-2. desative **Eye Saver Mode** e modos equivalentes de proteção ocular;
-3. desative economia de energia automática e contraste dinâmico;
-4. use um modo de imagem padrão ou personalizado e abra novamente os controles da Orla.
+## Wi-Fi, Bluetooth, or battery appears stale
 
-Alguns monitores anunciam suporte DDC/CI mesmo quando um desses modos bloqueia temporariamente a alteração. A tela integrada do notebook usa a interface WMI do Windows e não depende dessas opções do monitor externo.
+Externally initiated changes can take up to ten seconds to reach the shared slow-status refresh. Open Quick Panel to see the current cards. Radio toggles immediately reread the confirmed Windows state.
 
-## Alterei o INI e nada mudou
+Wi-Fi shows signal strength and, when permitted, the active connection name. If privacy or policy restricts the name, signal information remains available. Systems whose firmware reports no battery show external power instead.
 
-Saia pelo menu de contexto, edite `%LOCALAPPDATA%\Orla\settings.ini` e inicie novamente.
+## External-display brightness does not change
+
+The display must expose DDC/CI and allow brightness commands in its current picture mode. In the monitor's physical menu:
+
+1. enable DDC/CI;
+2. disable Eye Saver or similar eye-comfort modes;
+3. disable automatic power saving and dynamic contrast;
+4. select a standard/custom picture mode and reopen Quick Panel.
+
+The integrated laptop panel uses WMI and does not depend on monitor DDC/CI settings.
+
+## I edited the INI and nothing changed
+
+Exit Orla from its context menu, edit the file, and start Orla again. Runtime mode switching is available from the context menu and is safer than editing while the process is active.
 
 ## Logs
 
 `%LOCALAPPDATA%\Orla\Orla.log`
+
+Remove usernames, company/network names, window titles, and other private information before sharing a log.

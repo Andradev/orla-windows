@@ -1,5 +1,5 @@
-name: Relatar um bug
-description: Informe um comportamento reproduzível da Orla.
+name: Bug report
+description: Report reproducible Orla behavior.
 title: "[Bug]: "
 labels:
   - bug
@@ -7,66 +7,76 @@ body:
   - type: markdown
     attributes:
       value: |
-        Obrigado por ajudar. Remova nomes de usuário, empresa, rede, títulos de janelas e outros dados privados antes de enviar.
+        Thank you for helping. Remove usernames, company/network names, window titles, and other private data before submitting.
   - type: input
     id: orla-version
     attributes:
-      label: Versão da Orla
-      placeholder: "1.2.10"
+      label: Orla version
+      placeholder: "2.0.0"
     validations:
       required: true
   - type: input
     id: windows-version
     attributes:
-      label: Windows
-      description: Edição, versão e build.
+      label: Windows version
+      description: Edition, version, and build number.
       placeholder: "Windows 11 24H2, build 26100"
+    validations:
+      required: true
+  - type: dropdown
+    id: taskbar-mode
+    attributes:
+      label: Taskbar mode
+      options:
+        - Native
+        - OrlaDock (legacy)
+        - Unknown
     validations:
       required: true
   - type: textarea
     id: displays
     attributes:
-      label: Monitores e escala
-      placeholder: "2 monitores; 1920x1080 a 100% e 2560x1440 a 125%"
+      label: Displays and scaling
+      placeholder: "2 displays; 1920x1080 at 100% and 2560x1440 at 125%"
     validations:
       required: true
   - type: textarea
     id: steps
     attributes:
-      label: Passos para reproduzir
-      description: Liste uma sequência mínima e repetível.
+      label: Reproduction steps
+      description: Provide the smallest repeatable sequence.
       placeholder: |
-        1. Abra...
-        2. Clique...
+        1. Open...
+        2. Click...
         3. Observe...
     validations:
       required: true
   - type: textarea
     id: expected
     attributes:
-      label: Resultado esperado
+      label: Expected result
     validations:
       required: true
   - type: textarea
     id: actual
     attributes:
-      label: Resultado observado
+      label: Actual result
     validations:
       required: true
   - type: textarea
     id: diagnostics
     attributes:
-      label: Diagnóstico sanitizado
-      description: Trecho relevante do log, medições ou captura sem informações privadas.
+      label: Sanitized diagnostics
+      description: Relevant log excerpt, measurements, or screenshot without private information.
       render: text
   - type: checkboxes
     id: checks
     attributes:
-      label: Confirmações
+      label: Confirmation
       options:
-        - label: Testei na release mais recente.
+        - label: I tested the latest stable release.
           required: true
-        - label: Consultei a solução de problemas.
+        - label: I read the troubleshooting guide.
           required: true
-        - label: Removi informações privadas do conteúdo enviado.
+        - label: I removed private information from this report.
           required: true

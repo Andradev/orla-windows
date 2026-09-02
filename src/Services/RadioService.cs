@@ -48,7 +48,7 @@ namespace Orla
         }
     }
 
-    // A API WinRT oficial é carregada por reflexão para manter um único EXE
+    // The official WinRT API is loaded through reflection to preserve a single EXE.
     // .NET Framework, sem empacotamento MSIX nem DLLs extras ao lado do Orla.
     internal static class RadioService
     {
@@ -94,7 +94,7 @@ namespace Orla
                 }
                 catch (Exception exception)
                 {
-                    Logger.Write("Falha ao consultar rádios do Windows: " + Unwrap(exception).Message);
+                    Logger.Write("Could not query Windows radios: " + Unwrap(exception).Message);
                     return RadiosSnapshot.Unavailable;
                 }
             }
@@ -135,7 +135,7 @@ namespace Orla
                 }
                 catch (Exception exception)
                 {
-                    Logger.Write("Falha ao alternar rádio do Windows: " + Unwrap(exception).Message);
+                    Logger.Write("Could not toggle a Windows radio: " + Unwrap(exception).Message);
                     return false;
                 }
             }
@@ -182,7 +182,7 @@ namespace Orla
         private static object AwaitResult(object operation, Type resultType)
         {
             Task task = (Task)_asTask.MakeGenericMethod(resultType).Invoke(null, new[] { operation });
-            if (!task.Wait(TimeSpan.FromSeconds(5))) throw new TimeoutException("A API de rádios não respondeu em 5 segundos.");
+            if (!task.Wait(TimeSpan.FromSeconds(5))) throw new TimeoutException("The radio API did not respond within five seconds.");
             return task.GetType().GetProperty("Result").GetValue(task, null);
         }
 
