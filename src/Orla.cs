@@ -7,6 +7,7 @@ using System.IO.Pipes;
 using System.Linq;
 using System.Reflection;
 using System.Runtime.InteropServices;
+using System.Security.Cryptography;
 using System.Text;
 using System.Threading;
 using System.Windows;
@@ -24,12 +25,12 @@ using DrawingRectangle = System.Drawing.Rectangle;
 using WpfEllipse = System.Windows.Shapes.Ellipse;
 
 [assembly: AssemblyTitle("Orla")]
-[assembly: AssemblyDescription("Topbar e dock leves para Windows")]
+[assembly: AssemblyDescription("A lightweight top bar and native taskbar companion for Windows")]
 [assembly: AssemblyCompany("Orla contributors")]
 [assembly: AssemblyProduct("Orla")]
 [assembly: AssemblyCopyright("MIT License")]
-[assembly: AssemblyVersion("1.2.10.0")]
-[assembly: AssemblyFileVersion("1.2.10.0")]
+[assembly: AssemblyVersion("2.0.0.0")]
+[assembly: AssemblyFileVersion("2.0.0.0")]
 
 namespace Orla
 {
@@ -40,13 +41,28 @@ namespace Orla
         [STAThread]
         private static void Main(string[] args)
         {
+            if (args.Any(delegate(string value) { return string.Equals(value, "--uninstall", StringComparison.OrdinalIgnoreCase); }))
+            {
+                bool silent = args.Any(delegate(string value) { return string.Equals(value, "--silent", StringComparison.OrdinalIgnoreCase); });
+                bool keepSettings = args.Any(delegate(string value) { return string.Equals(value, "--keep-settings", StringComparison.OrdinalIgnoreCase); });
+                SelfInstaller.Uninstall(silent, keepSettings);
+                return;
+            }
+
             if (args.Any(delegate(string value) { return string.Equals(value, "--restore", StringComparison.OrdinalIgnoreCase); }))
             {
                 TaskbarController.RestoreAll();
                 return;
             }
 
-            if (RedirectExternalCopyToInstallation(args)) return;
+            if (args.Any(delegate(string value) { return string.Equals(value, "--install", StringComparison.OrdinalIgnoreCase); }))
+            {
+                bool silent = args.Any(delegate(string value) { return string.Equals(value, "--silent", StringComparison.OrdinalIgnoreCase); });
+                SelfInstaller.InstallCurrentExecutable(!silent);
+                return;
+            }
+
+            if (SelfInstaller.InstallOrRedirectExternalCopy(args)) return;
 
             bool automaticStartup = args.Any(delegate(string value)
             {
@@ -60,15 +76,15 @@ namespace Orla
                 return;
             }
 
-            if (automaticStartup) Logger.Write("Inicialização automática do usuário confirmada.");
+            if (automaticStartup) Logger.Write("Automatic user startup confirmed.");
 
-            // O renderizador padrão reserva centenas de MB na GPU integrada.
-            // SoftwareOnly mantém a memória previsível neste PC.
+            // The default renderer reserves hundreds of MB on some integrated GPUs.
+            // SoftwareOnly keeps memory usage predictable on low-end systems.
             RenderOptions.ProcessRenderMode = RenderMode.SoftwareOnly;
 
             AppDomain.CurrentDomain.UnhandledException += delegate(object sender, UnhandledExceptionEventArgs eventArgs)
             {
-                Logger.Write("Falha não tratada: " + eventArgs.ExceptionObject);
+                Logger.Write("Unhandled failure: " + eventArgs.ExceptionObject);
                 TaskbarController.RestoreAll();
             };
 
@@ -77,7 +93,7 @@ namespace Orla
             ShellController controller = new ShellController(app);
             app.DispatcherUnhandledException += delegate(object sender, DispatcherUnhandledExceptionEventArgs eventArgs)
             {
-                Logger.Write("Falha da interface: " + eventArgs.Exception);
+                Logger.Write("UI failure: " + eventArgs.Exception);
                 eventArgs.Handled = true;
                 controller.Exit(true);
             };
@@ -86,7 +102,14 @@ namespace Orla
             app.Run();
         }
 
-        private static bool RedirectExternalCopyToInstallation(string[] args)
+    }
+
+    internal static class SelfInstaller
+    {
+        private const string RunKeyPath = @"Software\Microsoft\Windows\CurrentVersion\Run";
+        private const string UninstallKeyPath = @"Software\Microsoft\Windows\CurrentVersion\Uninstall\Orla";
+
+        internal static bool InstallOrRedirectExternalCopy(string[] args)
         {
             if (args.Any(delegate(string value)
             {
@@ -96,29 +119,260 @@ namespace Orla
             try
             {
                 string currentPath = Path.GetFullPath(Assembly.GetExecutingAssembly().Location);
-                string installedPath = Path.GetFullPath(Path.Combine(
-                    Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-                    "Orla", "Orla.exe"));
-                if (string.Equals(currentPath, installedPath, StringComparison.OrdinalIgnoreCase)
-                    || !File.Exists(installedPath)) return false;
-
-                Process.Start(new ProcessStartInfo
+                string installedPath = GetInstalledPath();
+                if (string.Equals(currentPath, installedPath, StringComparison.OrdinalIgnoreCase))
                 {
-                    FileName = installedPath,
-                    Arguments = args.Any(delegate(string value)
+                    EnsureRegistration(installedPath);
+                    return false;
+                }
+
+                if (!File.Exists(installedPath))
+                {
+                    MessageBoxResult install = MessageBox.Show(
+                        "Install Orla for your Windows account?\n\n" +
+                        "Orla will be copied to your local profile and start automatically when you sign in. " +
+                        "Administrator rights are not required.",
+                        "Install Orla",
+                        MessageBoxButton.YesNo,
+                        MessageBoxImage.Question);
+                    if (install != MessageBoxResult.Yes) return true;
+                    InstallCurrentExecutable(false);
+                    return true;
+                }
+
+                if (!FilesMatch(currentPath, installedPath))
+                {
+                    MessageBoxResult update = MessageBox.Show(
+                        "A different Orla version is already installed. Update it now?",
+                        "Update Orla",
+                        MessageBoxButton.YesNo,
+                        MessageBoxImage.Question);
+                    if (update == MessageBoxResult.Yes)
                     {
-                        return string.Equals(value, "--startup", StringComparison.OrdinalIgnoreCase);
-                    }) ? "--startup" : string.Empty,
-                    UseShellExecute = true
-                });
-                Logger.Write("Cópia externa redirecionada para a instalação oficial: " + currentPath);
+                        InstallCurrentExecutable(false);
+                        return true;
+                    }
+                }
+
+                LaunchInstalled(installedPath, args.Any(delegate(string value)
+                {
+                    return string.Equals(value, "--startup", StringComparison.OrdinalIgnoreCase);
+                }));
+                Logger.Write("External copy redirected to the installed executable: " + currentPath);
                 return true;
             }
             catch (Exception exception)
             {
-                Logger.Write("Não foi possível redirecionar para a instalação oficial: " + exception.Message);
-                return false;
+                Environment.ExitCode = 1;
+                Logger.Write("Could not install or redirect the external copy: " + exception);
+                MessageBox.Show(
+                    "Orla could not complete the installation.\n\n" + exception.Message,
+                    "Orla",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Error);
+                return true;
             }
+        }
+
+        internal static void InstallCurrentExecutable(bool showCompletion)
+        {
+            try
+            {
+                string currentPath = Path.GetFullPath(Assembly.GetExecutingAssembly().Location);
+                string installedPath = GetInstalledPath();
+                bool alreadyInstalled = string.Equals(currentPath, installedPath, StringComparison.OrdinalIgnoreCase);
+
+                TaskbarController.RestoreAll();
+                if (!alreadyInstalled)
+                {
+                    StopOtherOrlaProcesses();
+                    Directory.CreateDirectory(Path.GetDirectoryName(installedPath));
+                    string incomingPath = installedPath + ".incoming";
+                    File.Copy(currentPath, incomingPath, true);
+                    if (File.Exists(installedPath)) File.Delete(installedPath);
+                    File.Move(incomingPath, installedPath);
+                }
+
+                EnsureRegistration(installedPath);
+                LaunchInstalled(installedPath, true);
+                Logger.Write((alreadyInstalled ? "Installation repaired: " : "Installation completed: ") + installedPath);
+
+                if (showCompletion)
+                {
+                    MessageBox.Show(
+                        "Orla is installed and will start automatically when you sign in.",
+                        "Orla installed",
+                        MessageBoxButton.OK,
+                        MessageBoxImage.Information);
+                }
+            }
+            catch (Exception exception)
+            {
+                Environment.ExitCode = 1;
+                Logger.Write("Installation failed: " + exception);
+                MessageBox.Show(
+                    "Orla could not be installed.\n\n" + exception.Message,
+                    "Orla installation",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Error);
+            }
+        }
+
+        internal static void Uninstall(bool silent, bool keepSettings)
+        {
+            try
+            {
+                if (!silent)
+                {
+                    MessageBoxResult confirmation = MessageBox.Show(
+                        keepSettings
+                            ? "Remove Orla but keep its settings and local log?"
+                            : "Remove Orla, its startup entry, settings, and local log?",
+                        "Uninstall Orla",
+                        MessageBoxButton.YesNo,
+                        MessageBoxImage.Question);
+                    if (confirmation != MessageBoxResult.Yes) return;
+                }
+
+                string installedPath = GetInstalledPath();
+                TaskbarController.RestoreAll();
+                RemoveRegistration();
+                StopOtherOrlaProcesses();
+
+                string scriptPath = Path.Combine(Path.GetTempPath(), "orla-uninstall-" + Guid.NewGuid().ToString("N") + ".cmd");
+                string installDirectory = Path.GetDirectoryName(installedPath);
+                string script = "@echo off\r\n" +
+                    "ping 127.0.0.1 -n 2 > nul\r\n" +
+                    "del /f /q \"" + installedPath + "\" > nul 2>&1\r\n";
+                if (!keepSettings)
+                {
+                    script += "del /f /q \"" + Path.Combine(installDirectory, "settings.ini") + "\" > nul 2>&1\r\n" +
+                        "del /f /q \"" + Path.Combine(installDirectory, "Orla.log") + "\" > nul 2>&1\r\n";
+                }
+                script += "del /f /q \"" + Path.Combine(installDirectory, "taskbar-state.txt") + "\" > nul 2>&1\r\n";
+                if (!keepSettings) script += "rmdir /q \"" + installDirectory + "\" > nul 2>&1\r\n";
+                script += "del /f /q \"%~f0\"\r\n";
+                File.WriteAllText(scriptPath, script, Encoding.ASCII);
+
+                if (!silent)
+                {
+                    MessageBox.Show(
+                        "Orla will finish removing its local files after this window closes.",
+                        "Orla removed",
+                        MessageBoxButton.OK,
+                        MessageBoxImage.Information);
+                }
+
+                Process.Start(new ProcessStartInfo
+                {
+                    FileName = "cmd.exe",
+                    Arguments = "/d /c \"\"" + scriptPath + "\"\"",
+                    UseShellExecute = false,
+                    CreateNoWindow = true,
+                    WindowStyle = ProcessWindowStyle.Hidden
+                });
+            }
+            catch (Exception exception)
+            {
+                Environment.ExitCode = 1;
+                Logger.Write("Uninstall failed: " + exception);
+                if (!silent)
+                {
+                    MessageBox.Show(
+                        "Orla could not be fully removed.\n\n" + exception.Message,
+                        "Uninstall Orla",
+                        MessageBoxButton.OK,
+                        MessageBoxImage.Error);
+                }
+            }
+        }
+
+        private static string GetInstalledPath()
+        {
+            return Path.GetFullPath(Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                "Orla", "Orla.exe"));
+        }
+
+        private static bool FilesMatch(string leftPath, string rightPath)
+        {
+            FileInfo left = new FileInfo(leftPath);
+            FileInfo right = new FileInfo(rightPath);
+            if (left.Length != right.Length) return false;
+
+            using (SHA256 algorithm = SHA256.Create())
+            using (FileStream leftStream = File.OpenRead(leftPath))
+            using (FileStream rightStream = File.OpenRead(rightPath))
+            {
+                byte[] leftHash = algorithm.ComputeHash(leftStream);
+                byte[] rightHash = algorithm.ComputeHash(rightStream);
+                return leftHash.SequenceEqual(rightHash);
+            }
+        }
+
+        private static void EnsureRegistration(string installedPath)
+        {
+            using (Microsoft.Win32.RegistryKey runKey = Microsoft.Win32.Registry.CurrentUser.CreateSubKey(RunKeyPath))
+            {
+                runKey.SetValue("Orla", "\"" + installedPath + "\" --startup", Microsoft.Win32.RegistryValueKind.String);
+            }
+
+            Version version = Assembly.GetExecutingAssembly().GetName().Version;
+            using (Microsoft.Win32.RegistryKey uninstallKey = Microsoft.Win32.Registry.CurrentUser.CreateSubKey(UninstallKeyPath))
+            {
+                uninstallKey.SetValue("DisplayName", "Orla", Microsoft.Win32.RegistryValueKind.String);
+                uninstallKey.SetValue("DisplayVersion", version == null ? "" : version.ToString(3), Microsoft.Win32.RegistryValueKind.String);
+                uninstallKey.SetValue("Publisher", "Orla contributors", Microsoft.Win32.RegistryValueKind.String);
+                uninstallKey.SetValue("DisplayIcon", installedPath, Microsoft.Win32.RegistryValueKind.String);
+                uninstallKey.SetValue("InstallLocation", Path.GetDirectoryName(installedPath), Microsoft.Win32.RegistryValueKind.String);
+                uninstallKey.SetValue("URLInfoAbout", "https://github.com/Andradev/orla-windows", Microsoft.Win32.RegistryValueKind.String);
+                uninstallKey.SetValue("UninstallString", "\"" + installedPath + "\" --uninstall", Microsoft.Win32.RegistryValueKind.String);
+                uninstallKey.SetValue("QuietUninstallString", "\"" + installedPath + "\" --uninstall --silent", Microsoft.Win32.RegistryValueKind.String);
+                uninstallKey.SetValue("NoModify", 1, Microsoft.Win32.RegistryValueKind.DWord);
+                uninstallKey.SetValue("NoRepair", 1, Microsoft.Win32.RegistryValueKind.DWord);
+                uninstallKey.SetValue("EstimatedSize", (int)Math.Max(1, new FileInfo(installedPath).Length / 1024), Microsoft.Win32.RegistryValueKind.DWord);
+            }
+        }
+
+        private static void RemoveRegistration()
+        {
+            using (Microsoft.Win32.RegistryKey runKey = Microsoft.Win32.Registry.CurrentUser.OpenSubKey(RunKeyPath, true))
+            {
+                if (runKey != null) runKey.DeleteValue("Orla", false);
+            }
+            Microsoft.Win32.Registry.CurrentUser.DeleteSubKeyTree(UninstallKeyPath, false);
+        }
+
+        private static void StopOtherOrlaProcesses()
+        {
+            int currentProcessId = Process.GetCurrentProcess().Id;
+            foreach (Process process in Process.GetProcessesByName("Orla"))
+            {
+                try
+                {
+                    if (process.Id == currentProcessId) continue;
+                    if (!process.CloseMainWindow() || !process.WaitForExit(800)) process.Kill();
+                    process.WaitForExit(2000);
+                }
+                catch (Exception exception)
+                {
+                    Logger.Write("Could not stop another Orla process: " + exception.Message);
+                }
+                finally
+                {
+                    process.Dispose();
+                }
+            }
+        }
+
+        private static void LaunchInstalled(string installedPath, bool startup)
+        {
+            Process.Start(new ProcessStartInfo
+            {
+                FileName = installedPath,
+                Arguments = startup ? "--startup" : string.Empty,
+                UseShellExecute = true
+            });
         }
     }
 
@@ -163,13 +417,13 @@ namespace Orla
 
         internal void Start()
         {
-            Logger.Write("Iniciando Orla.");
+            Logger.Write("Starting Orla.");
             IntPtr initialForeground = NativeMethods.GetForegroundWindow();
             uint initialProcessId;
             NativeMethods.GetWindowThreadProcessId(initialForeground, out initialProcessId);
             if (initialProcessId != 0 && initialProcessId != _currentProcessId)
                 _lastExternalForeground = initialForeground;
-            TaskbarController.HideAll();
+            TaskbarController.Configure(_settings.TaskbarMode, _settings.NativeTaskbarAutoHide);
 
             _statusMonitor = new SystemStatusMonitor();
             CreateBars();
@@ -180,8 +434,8 @@ namespace Orla
                 {
                     uint processId;
                     NativeMethods.GetWindowThreadProcessId(foreground, out processId);
-                    // Flyouts da própria Orla não apagam o título nem o indicador
-                    // do aplicativo que continuava ativo antes de abrir o painel.
+                    // Orla flyouts do not clear the title or indicator of the
+                    // application that remained active before the panel opened.
                     if (processId == _currentProcessId) return;
                     _lastExternalForeground = foreground;
                     foreach (DockWindow dock in _docks) dock.ForegroundChanged(foreground);
@@ -190,11 +444,11 @@ namespace Orla
             });
             _foregroundTracker.Start();
 
-            // O Explorer pode recriar a taskbar secundária após uma mudança de área útil.
-            // Esta verificação barata garante que ela continue oculta nos dois monitores.
+            // Explorer can recreate a taskbar after a display or work-area change.
+            // This inexpensive check reapplies the selected integration mode.
             _taskbarTimer = new DispatcherTimer(DispatcherPriority.ApplicationIdle);
             _taskbarTimer.Interval = TimeSpan.FromSeconds(5);
-            _taskbarTimer.Tick += delegate { TaskbarController.HideAll(false); };
+            _taskbarTimer.Tick += delegate { TaskbarController.RefreshConfiguredState(false); };
             _taskbarTimer.Start();
 
             if (_settings.BareWindowsKeyOpensFluent && File.Exists(_settings.FluentSearchPath))
@@ -204,7 +458,7 @@ namespace Orla
             }
             else if (_settings.BareWindowsKeyOpensFluent)
             {
-                Logger.Write("Fluent Search ausente; tecla Windows nativa preservada.");
+                Logger.Write("Fluent Search is unavailable; the native Windows key is preserved.");
             }
 
             Microsoft.Win32.SystemEvents.DisplaySettingsChanged += OnDisplaySettingsChanged;
@@ -234,20 +488,24 @@ namespace Orla
             foreach (Forms.Screen screen in screens)
             {
                 TopBarWindow topBar = new TopBarWindow(_settings, this, _statusMonitor, screen.DeviceName);
-                DockWindow dock = new DockWindow(_settings, this, screen.DeviceName);
                 _topBars.Add(topBar);
-                _docks.Add(dock);
                 topBar.Show();
-                dock.Show();
+                if (_settings.TaskbarMode == TaskbarIntegrationMode.OrlaDock)
+                {
+                    DockWindow dock = new DockWindow(_settings, this, screen.DeviceName);
+                    _docks.Add(dock);
+                    dock.Show();
+                }
             }
-            Logger.Write("Topbars e docks criados em " + screens.Length.ToString(CultureInfo.InvariantCulture) + " monitor(es).");
+            Logger.Write("Top bars created on " + screens.Length.ToString(CultureInfo.InvariantCulture) +
+                " display(s); taskbar mode=" + _settings.TaskbarMode + ".");
         }
 
         private void RecreateBars()
         {
             DisposeBars();
+            TaskbarController.Configure(_settings.TaskbarMode, _settings.NativeTaskbarAutoHide);
             CreateBars();
-            TaskbarController.HideAll(false);
         }
 
         private void DisposeBars()
@@ -269,9 +527,9 @@ namespace Orla
                 if (sameScreen) return;
             }
 
-            // Ao clicar novamente na topbar, WPF pode entregar Deactivated ao
-            // painel alguns milissegundos antes do Click do botão. Nesse caso a
-            // janela já fechou; não a reabra na mesma ação.
+            // A second top-bar click can deliver Deactivated to the panel a few
+            // milliseconds before the button Click. Do not reopen a panel that
+            // already closed during the same pointer action.
             if ((DateTime.UtcNow - _lastQuickPanelClosedAt).TotalMilliseconds < 350
                 && string.Equals(_lastQuickPanelClosedScreen, targetScreen, StringComparison.OrdinalIgnoreCase))
             {
@@ -386,6 +644,20 @@ namespace Orla
             foreach (TopBarWindow topBar in _topBars) topBar.ForegroundChanged(foreground);
         }
 
+        internal bool UsesNativeTaskbar
+        {
+            get { return _settings.TaskbarMode == TaskbarIntegrationMode.Native; }
+        }
+
+        internal void ToggleTaskbarMode()
+        {
+            _settings.TaskbarMode = UsesNativeTaskbar
+                ? TaskbarIntegrationMode.OrlaDock
+                : TaskbarIntegrationMode.Native;
+            _settings.SavePinnedApplications();
+            RecreateBars();
+        }
+
         private void RefreshDocks()
         {
             foreach (DockWindow dock in _docks) dock.RefreshNow();
@@ -408,12 +680,12 @@ namespace Orla
                 string path = _settings.FluentSearchPath;
                 if (!File.Exists(path))
                 {
-                    Logger.Write("Fluent Search não encontrado em: " + path);
+                    Logger.Write("Fluent Search was not found at: " + path);
                     return;
                 }
 
                 string targetScreen = ResolveFluentTargetScreen(targetScreenDeviceName);
-                Logger.Write("Fluent Search solicitado para " + targetScreen + ".");
+                Logger.Write("Fluent Search requested for " + targetScreen + ".");
                 bool startWorker = false;
                 lock (_fluentQueueSync)
                 {
@@ -428,7 +700,7 @@ namespace Orla
             }
             catch (Exception exception)
             {
-                Logger.Write("Falha ao abrir Fluent Search: " + exception);
+                Logger.Write("Could not open Fluent Search: " + exception);
             }
         }
 
@@ -478,9 +750,9 @@ namespace Orla
                     using (NamedPipeClientStream pipe = new NamedPipeClientStream(".", pipeName, PipeDirection.Out))
                     {
                         pipe.Connect(250);
-                        // Transfere a janela ainda oculta para o monitor solicitado.
-                        // Depois de visível, o próprio Fluent controla tamanho e
-                        // posição para não haver um segundo salto vertical.
+                        // Move the still-hidden window to the requested display.
+                        // Once visible, Fluent controls its own size and position
+                        // so there is no second vertical jump.
                         IntPtr hiddenWindow = WindowCatalog.FindProcessWindow("FluentSearch", "Fluent Search", false);
                         MoveFluentSearchToScreen(hiddenWindow, targetScreenDeviceName);
                         using (StreamWriter writer = new StreamWriter(pipe, new UTF8Encoding(false)))
@@ -551,42 +823,40 @@ namespace Orla
                 bool wasVisible = visibleWindow != IntPtr.Zero;
                 if (wasVisible)
                 {
-                    // O canal RequestOpen de algumas versões apenas reafirma a
-                    // janela quando ela já está visível. WM_CLOSE passa pelo
-                    // ciclo normal do Fluent Search: ele oculta a janela e
-                    // preserva o processo/índice, sem forçar ShowWindow.
+                    // Some versions treat RequestOpen as a no-op when the window
+                    // is already visible. WM_CLOSE follows Fluent Search's normal
+                    // hide cycle and preserves its process and search index.
                     NativeMethods.PostMessage(visibleWindow, NativeMethods.WmClose, IntPtr.Zero, IntPtr.Zero);
                     if (WaitForFluentSearchVisibility(false, 2000))
                     {
-                        Logger.Write("Fluent Search ocultado pelo fechamento cooperativo.");
+                        Logger.Write("Fluent Search hidden through cooperative close.");
                         return;
                     }
-                    Logger.Write("Fluent Search não respondeu ao fechamento cooperativo; tentando o canal nativo.");
+                    Logger.Write("Fluent Search did not respond to cooperative close; trying its native channel.");
                 }
                 if (RequestFluentSearchWindow(4000, targetScreenDeviceName))
                 {
-                    // A animação de saída do Fluent mantém WS_VISIBLE por mais
-                    // de 500 ms em algumas GPUs. Espere o estado real antes de
-                    // liberar o próximo pedido da fila; assim um terceiro toque
-                    // não interpreta por engano que a busca ainda está aberta.
+                    // Fluent's exit animation can keep WS_VISIBLE for more than
+                    // 500 ms on some GPUs. Wait for the real state before serving
+                    // the next queued request so rapid presses cannot read stale state.
                     bool reachedExpectedState = WaitForFluentSearchVisibility(!wasVisible, wasVisible ? 2000 : 2500);
                     if (reachedExpectedState)
                     {
                         Logger.Write(wasVisible
-                            ? "Fluent Search ocultado pelo toggle nativo."
-                            : "Fluent Search aberto pelo canal nativo em " + targetScreenDeviceName + ".");
+                            ? "Fluent Search hidden through its native toggle."
+                            : "Fluent Search opened through its native channel on " + targetScreenDeviceName + ".");
                     }
                     else
                     {
-                        Logger.Write("Fluent Search recebeu o toggle, mas não mudou de visibilidade no tempo esperado.");
+                        Logger.Write("Fluent Search received the toggle but did not change visibility in time.");
                     }
                 }
                 else
-                    Logger.Write("O canal nativo do Fluent Search não respondeu em " + targetScreenDeviceName + ".");
+                    Logger.Write("The Fluent Search native channel did not respond on " + targetScreenDeviceName + ".");
             }
             catch (Exception exception)
             {
-                Logger.Write("Falha ao recuperar ativação do Fluent Search: " + exception.Message);
+                Logger.Write("Could not recover Fluent Search activation: " + exception.Message);
             }
         }
 
@@ -598,7 +868,9 @@ namespace Orla
             }
 
             _exiting = true;
-            Logger.Write(fromFailure ? "Saindo após falha; restaurando barra nativa." : "Saindo; restaurando barra nativa.");
+            Logger.Write(fromFailure
+                ? "Exiting after a failure; restoring the original taskbar state."
+                : "Exiting; restoring the original taskbar state.");
             Dispose();
             TaskbarController.RestoreAll();
             _application.Shutdown(fromFailure ? 1 : 0);
@@ -659,10 +931,18 @@ namespace Orla
         internal WpfEllipse Indicator;
     }
 
+    internal enum TaskbarIntegrationMode
+    {
+        Native,
+        OrlaDock
+    }
+
     internal sealed class ShellSettings
     {
         internal string FluentSearchPath;
         internal bool BareWindowsKeyOpensFluent;
+        internal TaskbarIntegrationMode TaskbarMode;
+        internal bool NativeTaskbarAutoHide;
         internal int TopBarHeight;
         internal int DockReservedHeight;
         internal List<PinnedApplication> PinnedApplications;
@@ -673,6 +953,8 @@ namespace Orla
             ShellSettings settings = new ShellSettings();
             settings.FluentSearchPath = @"C:\Program Files\Fluent Search\FluentSearch.exe";
             settings.BareWindowsKeyOpensFluent = true;
+            settings.TaskbarMode = TaskbarIntegrationMode.Native;
+            settings.NativeTaskbarAutoHide = true;
             settings.TopBarHeight = 29;
             settings.DockReservedHeight = 61;
             settings.PinnedApplications = new List<PinnedApplication>();
@@ -688,9 +970,9 @@ namespace Orla
                     File.Copy(legacyPath, path, false);
                     string[] migratedLines = File.ReadAllLines(path, Encoding.UTF8);
                     if (migratedLines.Length > 0 && migratedLines[0].StartsWith("# Victor Shell", StringComparison.OrdinalIgnoreCase))
-                        migratedLines[0] = "# Orla - configuração simples e reversível";
+                        migratedLines[0] = "# Orla - simple and reversible configuration";
                     File.WriteAllLines(path, migratedLines, Encoding.UTF8);
-                    Logger.Write("Configuração migrada da instalação anterior para Orla.");
+                    Logger.Write("Configuration migrated from the previous installation to Orla.");
                 }
                 if (!File.Exists(path))
                 {
@@ -698,14 +980,16 @@ namespace Orla
                     settings.PinnedApplications = PinnedCatalog.GetDefaultPinnedApplications();
                     List<string> initialLines = new List<string>
                     {
-                        "# Orla - configuração simples e reversível",
+                        "# Orla - simple and reversible configuration",
                         "FluentSearchPath=" + settings.FluentSearchPath,
                         "BareWindowsKeyOpensFluent=true",
-                        "SettingsFormat=2",
+                        "TaskbarMode=Native",
+                        "NativeTaskbarAutoHide=true",
+                        "SettingsFormat=3",
                         "NativePinnedImportedV5=true",
                         "TopBarHeight=29",
                         "DockReservedHeight=61",
-                        "# Uma topbar e um dock aparecem em cada monitor conectado."
+                        "# Native uses the Windows taskbar. OrlaDock enables the legacy custom dock."
                     };
                     initialLines.AddRange(settings.PinnedApplications.Select(delegate(PinnedApplication app)
                     {
@@ -728,6 +1012,12 @@ namespace Orla
                     string value = line.Substring(separator + 1).Trim();
                     if (string.Equals(key, "FluentSearchPath", StringComparison.OrdinalIgnoreCase)) settings.FluentSearchPath = value;
                     if (string.Equals(key, "BareWindowsKeyOpensFluent", StringComparison.OrdinalIgnoreCase)) settings.BareWindowsKeyOpensFluent = ParseBool(value, true);
+                    if (string.Equals(key, "TaskbarMode", StringComparison.OrdinalIgnoreCase))
+                        settings.TaskbarMode = string.Equals(value, "OrlaDock", StringComparison.OrdinalIgnoreCase)
+                            ? TaskbarIntegrationMode.OrlaDock
+                            : TaskbarIntegrationMode.Native;
+                    if (string.Equals(key, "NativeTaskbarAutoHide", StringComparison.OrdinalIgnoreCase))
+                        settings.NativeTaskbarAutoHide = ParseBool(value, true);
                     if (string.Equals(key, "TopBarHeight", StringComparison.OrdinalIgnoreCase)) settings.TopBarHeight = ParseInt(value, 29, 24, 42);
                     if (string.Equals(key, "DockReservedHeight", StringComparison.OrdinalIgnoreCase)) settings.DockReservedHeight = ParseInt(value, 61, 48, 82);
                     if (string.Equals(key, "NativePinnedImportedV5", StringComparison.OrdinalIgnoreCase)) nativePinnedImported = ParseBool(value, false);
@@ -766,14 +1056,11 @@ namespace Orla
                     }
                     settings.SavePinnedApplications();
                 }
-                else if (settingsFormat < 2)
-                {
-                    settings.SavePinnedApplications();
-                }
+                if (settingsFormat < 3) settings.SavePinnedApplications();
             }
             catch (Exception exception)
             {
-                Logger.Write("Falha ao ler configuração; usando padrão: " + exception.Message);
+                Logger.Write("Could not read the configuration; using defaults: " + exception.Message);
             }
 
             return settings;
@@ -790,6 +1077,8 @@ namespace Orla
                         string trimmed = line.TrimStart();
                         return !trimmed.StartsWith("PinnedApp=", StringComparison.OrdinalIgnoreCase)
                             && !trimmed.StartsWith("FluentSearchHotkey=", StringComparison.OrdinalIgnoreCase)
+                            && !trimmed.StartsWith("TaskbarMode=", StringComparison.OrdinalIgnoreCase)
+                            && !trimmed.StartsWith("NativeTaskbarAutoHide=", StringComparison.OrdinalIgnoreCase)
                             && !trimmed.StartsWith("SettingsFormat=", StringComparison.OrdinalIgnoreCase)
                             && !trimmed.StartsWith("NativePinnedImported=", StringComparison.OrdinalIgnoreCase)
                             && !trimmed.StartsWith("NativePinnedImportedV2=", StringComparison.OrdinalIgnoreCase)
@@ -798,17 +1087,21 @@ namespace Orla
                             && !trimmed.StartsWith("NativePinnedImportedV5=", StringComparison.OrdinalIgnoreCase)
                             && !trimmed.StartsWith("# Favoritos do dock", StringComparison.OrdinalIgnoreCase)
                             && !trimmed.StartsWith("# As barras aparecem", StringComparison.OrdinalIgnoreCase)
-                            && !trimmed.StartsWith("# Uma topbar e um dock", StringComparison.OrdinalIgnoreCase);
+                            && !trimmed.StartsWith("# Uma topbar e um dock", StringComparison.OrdinalIgnoreCase)
+                            && !trimmed.StartsWith("# Native uses", StringComparison.OrdinalIgnoreCase)
+                            && !trimmed.StartsWith("# Dock favorites", StringComparison.OrdinalIgnoreCase);
                     }).ToList()
                     : new List<string>();
-                lines.Add("SettingsFormat=2");
+                lines.Add("TaskbarMode=" + (TaskbarMode == TaskbarIntegrationMode.OrlaDock ? "OrlaDock" : "Native"));
+                lines.Add("NativeTaskbarAutoHide=" + NativeTaskbarAutoHide.ToString().ToLowerInvariant());
+                lines.Add("SettingsFormat=3");
                 lines.Add("NativePinnedImportedV5=true");
-                lines.Add("# Uma topbar e um dock aparecem em cada monitor conectado.");
-                lines.Add("# Favoritos do dock; use o menu de contexto para fixar ou desafixar.");
+                lines.Add("# Native uses the Windows taskbar. OrlaDock enables the legacy custom dock.");
+                lines.Add("# Dock favorites apply only to OrlaDock mode.");
                 if (PinnedApplications.Count == 0)
                 {
-                    // Diferencia "nenhum favorito" de uma configuração antiga ou
-                    // ausente, que recebe a lista padrão na primeira inicialização.
+                    // Distinguishes an intentionally empty favorites list from an
+                    // old or missing configuration that receives migration defaults.
                     lines.Add("PinnedApp=");
                 }
                 else
@@ -822,7 +1115,7 @@ namespace Orla
             }
             catch (Exception exception)
             {
-                Logger.Write("Falha ao salvar favoritos: " + exception.Message);
+                Logger.Write("Could not save dock favorites: " + exception.Message);
             }
         }
 
@@ -838,13 +1131,13 @@ namespace Orla
                             && !line.TrimStart().StartsWith("# Ordem dos aplicativos", StringComparison.OrdinalIgnoreCase);
                     }).ToList()
                     : new List<string>();
-                lines.Add("# Ordem dos aplicativos; arraste no dock. Isto não fixa aplicativos fechados.");
+                lines.Add("# Application order; drag items in the dock. This does not pin closed applications.");
                 lines.AddRange(ApplicationOrder.Select(delegate(string key) { return "AppOrder=" + key; }));
                 File.WriteAllLines(path, lines, Encoding.UTF8);
             }
             catch (Exception exception)
             {
-                Logger.Write("Falha ao salvar ordem do dock: " + exception.Message);
+                Logger.Write("Could not save dock order: " + exception.Message);
             }
         }
 
@@ -877,8 +1170,8 @@ namespace Orla
     {
         internal static List<PinnedApplication> GetDefaultPinnedApplications()
         {
-            // O dock começa somente com os aplicativos realmente abertos.
-            // Favoritos são sempre uma escolha explícita do usuário.
+            // The dock starts with currently open applications only.
+            // Favorites are always an explicit user choice.
             return new List<PinnedApplication>();
         }
 
@@ -2325,6 +2618,13 @@ namespace Orla
             openSearch.Click += delegate { controller.LaunchFluentSearch(); };
             menu.Items.Add(openSearch);
             menu.Items.Add(new Separator());
+            MenuItem taskbarMode = new MenuItem
+            {
+                Header = controller.UsesNativeTaskbar ? Loc.UseLegacyOrlaDock : Loc.UseNativeTaskbar
+            };
+            taskbarMode.Click += delegate { controller.ToggleTaskbarMode(); };
+            menu.Items.Add(taskbarMode);
+            menu.Items.Add(new Separator());
             MenuItem exit = new MenuItem { Header = Loc.RestoreTaskbarAndExit };
             exit.Click += delegate { controller.Exit(false); };
             menu.Items.Add(exit);
@@ -2845,7 +3145,7 @@ namespace Orla
                     RaiseTrayOverflowState(false);
                     Volatile.Write(ref _trayOverflowCloseRequested, 0);
                     Interlocked.Exchange(ref _trayOverflowOperation, 0);
-                    TaskbarController.HideAll(false);
+                    TaskbarController.RefreshConfiguredState(false);
                 }
             });
         }
@@ -3176,7 +3476,24 @@ namespace Orla
     {
         private static bool _stateCaptured;
         private static uint _originalState;
+        private static TaskbarIntegrationMode _configuredMode = TaskbarIntegrationMode.Native;
+        private static bool _nativeAutoHide = true;
         private static readonly string StatePath = Path.Combine(Paths.DataDirectory, "taskbar-state.txt");
+
+        internal static void Configure(TaskbarIntegrationMode mode, bool nativeAutoHide)
+        {
+            _configuredMode = mode;
+            _nativeAutoHide = nativeAutoHide;
+            RefreshConfiguredState(true);
+        }
+
+        internal static void RefreshConfiguredState(bool writeLog)
+        {
+            if (_configuredMode == TaskbarIntegrationMode.Native)
+                ShowNativeTaskbars(_nativeAutoHide, writeLog);
+            else
+                HideAll(writeLog);
+        }
 
         internal static void HideAll()
         {
@@ -3186,12 +3503,23 @@ namespace Orla
         internal static void HideAll(bool writeLog)
         {
             if (ShellActions.ShouldKeepTaskbarForTrayOverflow()) return;
-            EnsureAutoHideState();
+            ApplyManagedAutoHide(true);
             foreach (IntPtr handle in FindTaskbars())
             {
                 NativeMethods.ShowWindow(handle, NativeMethods.SwHide);
             }
-            if (writeLog) Logger.Write("Barras nativas ocultadas de forma reversível.");
+            if (writeLog) Logger.Write("Windows taskbars hidden for legacy OrlaDock mode.");
+        }
+
+        private static void ShowNativeTaskbars(bool autoHide, bool writeLog)
+        {
+            ApplyManagedAutoHide(autoHide);
+            foreach (IntPtr handle in FindTaskbars())
+            {
+                NativeMethods.ShowWindow(handle, NativeMethods.SwShow);
+            }
+            if (writeLog)
+                Logger.Write("Windows native taskbar enabled; auto-hide=" + autoHide.ToString(CultureInfo.InvariantCulture) + ".");
         }
 
         internal static void RestoreAll()
@@ -3201,29 +3529,49 @@ namespace Orla
                 NativeMethods.ShowWindow(handle, NativeMethods.SwShow);
             }
             RestoreTaskbarState();
-            Logger.Write("Barras nativas restauradas.");
+            Logger.Write("Windows taskbars and their original state restored.");
         }
 
-        private static void EnsureAutoHideState()
+        private static void ApplyManagedAutoHide(bool enabled)
         {
             if (!_stateCaptured)
             {
-                NativeMethods.AppBarData getData = NativeMethods.CreateAppBarData(IntPtr.Zero);
-                _originalState = NativeMethods.SHAppBarMessage(NativeMethods.AbmGetState, ref getData).ToUInt32();
-                _stateCaptured = true;
                 try
                 {
-                    Directory.CreateDirectory(Paths.DataDirectory);
-                    File.WriteAllText(StatePath, _originalState.ToString(CultureInfo.InvariantCulture), Encoding.ASCII);
+                    uint persistedState;
+                    if (File.Exists(StatePath)
+                        && uint.TryParse(File.ReadAllText(StatePath).Trim(), NumberStyles.Integer,
+                            CultureInfo.InvariantCulture, out persistedState))
+                    {
+                        _originalState = persistedState;
+                        _stateCaptured = true;
+                        Logger.Write("Recovered the original taskbar state from the previous session.");
+                    }
                 }
-                catch (Exception exception)
+                catch { }
+
+                if (!_stateCaptured)
                 {
-                    Logger.Write("Não foi possível salvar estado da taskbar: " + exception.Message);
+                    NativeMethods.AppBarData getData = NativeMethods.CreateAppBarData(IntPtr.Zero);
+                    _originalState = NativeMethods.SHAppBarMessage(NativeMethods.AbmGetState, ref getData).ToUInt32();
+                    _stateCaptured = true;
+                    try
+                    {
+                        Directory.CreateDirectory(Paths.DataDirectory);
+                        File.WriteAllText(StatePath, _originalState.ToString(CultureInfo.InvariantCulture), Encoding.ASCII);
+                    }
+                    catch (Exception exception)
+                    {
+                        Logger.Write("Could not persist the original taskbar state: " + exception.Message);
+                    }
                 }
             }
 
             NativeMethods.AppBarData setData = NativeMethods.CreateAppBarData(IntPtr.Zero);
-            setData.lParam = new IntPtr((long)(_originalState | NativeMethods.AbsAutoHide));
+            uint desiredState = enabled
+                ? _originalState | NativeMethods.AbsAutoHide
+                : _originalState & ~NativeMethods.AbsAutoHide;
+            setData.lParam = new IntPtr((long)desiredState);
             NativeMethods.SHAppBarMessage(NativeMethods.AbmSetState, ref setData);
         }
 

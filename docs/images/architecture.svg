@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 560" role="img" aria-labelledby="title desc">
-  <title id="title">Arquitetura do Orla</title>
-  <desc id="desc">Eventos nativos do Windows alimentam um controlador único que coordena topbars e docks em cada monitor.</desc>
+  <title id="title">Orla architecture</title>
+  <desc id="desc">Native Windows events feed one controller coordinating Orla top bars and the Explorer-owned taskbar.</desc>
   <defs>
     <linearGradient id="bg" x1="40" y1="20" x2="1160" y2="540" gradientUnits="userSpaceOnUse"><stop stop-color="#151923"/><stop offset="1" stop-color="#090A0F"/></linearGradient>
     <linearGradient id="blue" x1="0" x2="1"><stop stop-color="#5AC8FA"/><stop offset="1" stop-color="#0A84FF"/></linearGradient>
@@ -8,8 +8,8 @@
   </defs>
   <rect width="1200" height="560" rx="28" fill="url(#bg)"/>
   <g font-family="Segoe UI, Inter, sans-serif">
-    <text x="54" y="64" fill="#F5F7FA" font-size="28" font-weight="650">Arquitetura pequena, limites claros.</text>
-    <text x="54" y="94" fill="#9FA8B8" font-size="16">APIs nativas entram; duas superfícies por monitor saem. Sem serviço, WebView ou injeção.</text>
+    <text x="54" y="64" fill="#F5F7FA" font-size="28" font-weight="650">Small architecture. Clear boundaries.</text>
+    <text x="54" y="94" fill="#9FA8B8" font-size="16">Native APIs in; Orla-owned top bars out. No service, WebView, injection, or Explorer patching.</text>
 
     <g fill="#FFFFFF" fill-opacity=".045" stroke="#FFFFFF" stroke-opacity=".11">
       <rect x="54" y="142" width="240" height="76" rx="18"/><rect x="54" y="238" width="240" height="76" rx="18"/><rect x="54" y="334" width="240" height="76" rx="18"/>
@@ -19,16 +19,16 @@
     </g>
 
     <g fill="#DDE2EA" font-size="16" font-weight="600">
-      <text x="84" y="176">Janelas e processos</text><text x="84" y="272">Foco do Windows</text><text x="84" y="368">Teclado e cursor</text>
+      <text x="84" y="176">Windows and processes</text><text x="84" y="272">Windows focus</text><text x="84" y="368">Keyboard and cursor</text>
       <text x="437" y="251" font-size="20">ShellController</text><text x="437" y="456">settings.ini</text>
-      <text x="844" y="163" font-size="18">Monitor 1</text><text x="844" y="331" font-size="18">Monitor 2</text>
+      <text x="844" y="163" font-size="18">Display 1</text><text x="844" y="331" font-size="18">Display 2</text>
     </g>
     <g fill="#8F99AA" font-size="13">
-      <text x="84" y="197">EnumWindows</text><text x="84" y="293">SetWinEventHook</text><text x="84" y="389">Win isolado · tela alvo</text>
-      <text x="437" y="279">ciclo de vida · catálogo · Fluent Search</text><text x="437" y="301">uma instância · recuperação reversível</text>
-      <text x="437" y="477">preferências e ordem compartilhadas</text>
-      <text x="844" y="190">TopBarWindow · AppBar reservada</text><text x="844" y="217">DockWindow · auto-hide local</text>
-      <text x="844" y="358">TopBarWindow · AppBar reservada</text><text x="844" y="385">DockWindow · auto-hide local</text>
+      <text x="84" y="197">Explorer taskbar</text><text x="84" y="293">SetWinEventHook</text><text x="84" y="389">Standalone Win · target display</text>
+      <text x="437" y="279">lifecycle · status · Fluent Search</text><text x="437" y="301">single instance · reversible recovery</text>
+      <text x="437" y="477">shared preferences and taskbar mode</text>
+      <text x="844" y="190">TopBarWindow · reserved AppBar</text><text x="844" y="217">Native taskbar · Explorer-owned</text>
+      <text x="844" y="358">TopBarWindow · reserved AppBar</text><text x="844" y="385">Native taskbar · Explorer-owned</text>
     </g>
 
     <g fill="none" stroke="#647086" stroke-width="2" marker-end="url(#arrow)">

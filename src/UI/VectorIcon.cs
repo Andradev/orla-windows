@@ -16,9 +16,9 @@ namespace Orla
         Settings, Search, Close, ChevronRight, ChevronUp
     }
 
-    // Fluent UI System Icons 20 Regular, da Microsoft (MIT). Os vetores ficam
-    // incorporados ao executável e são renderizados pelo WPF; não há fonte,
-    // pacote ou arquivo externo para carregar durante a execução.
+    // Microsoft Fluent UI System Icons 20 Regular (MIT). Vectors are embedded
+    // in the executable and rendered by WPF; no font, package, or external file
+    // is loaded at runtime.
     internal sealed class VectorIcon : Viewbox
     {
         private static readonly IDictionary<OrlaIcon, Geometry> Geometries = CreateGeometries();

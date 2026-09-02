@@ -1,22 +1,23 @@
-# Segurança
+# Security
 
-## Versões com suporte
+## Supported versions
 
-Somente a [release estável mais recente](https://github.com/Andradev/orla-windows/releases/latest) recebe correções de segurança. Versões anteriores devem ser atualizadas antes da investigação.
+Only the [latest stable release](https://github.com/Andradev/orla-windows/releases/latest) receives security fixes. Update older versions before investigation.
 
-## Relatar uma vulnerabilidade
+## Report a vulnerability
 
-Use o botão **Report a vulnerability** na [página de segurança do repositório](https://github.com/Andradev/orla-windows/security/advisories/new). Inclua versão, impacto, passos mínimos de reprodução e uma sugestão de mitigação, quando houver.
+Use **Report a vulnerability** on the repository's [Security Advisories page](https://github.com/Andradev/orla-windows/security/advisories/new). Include the affected version, impact, minimal reproduction, and a suggested mitigation when available.
 
-Não publique detalhes exploráveis em issues ou discussões antes de uma correção. O mantenedor confirmará o recebimento e coordenará a divulgação pelo advisory privado; prazos dependem da gravidade e da reprodutibilidade.
+Do not publish exploitable details in an issue or discussion before a fix. The maintainer will coordinate validation and disclosure through the private advisory; timing depends on severity and reproducibility.
 
-## Modelo de segurança
+## Security model
 
-- execução no contexto do usuário atual;
-- nenhuma elevação solicitada pelo instalador;
-- nenhuma modificação de política, serviço, driver ou arquivo do sistema;
-- hook global apenas para distinguir `Win` sozinho de combinações, ativado somente quando Fluent Search existe;
-- restauração explícita da barra nativa ao sair/desinstalar;
-- configurações locais em `%LOCALAPPDATA%\Orla`.
+- Orla runs as the current user and never requests elevation.
+- Installation writes only to `%LOCALAPPDATA%` and `HKCU`.
+- Native mode leaves taskbar behavior inside Explorer.
+- No policy, service, driver, Windows file, or Explorer process is modified.
+- The global keyboard hook exists only when standalone-`Win` Fluent Search integration is enabled and available.
+- Taskbar state is captured before any change and restored on exit, uninstall, or `--restore`.
+- Configuration and logs remain local.
 
-O executável gerado por `Build.ps1` não é assinado. Verifique o código-fonte e compile localmente para maior confiança.
+Release binaries are unsigned. Verify the published SHA-256 or compile from source for the highest assurance.

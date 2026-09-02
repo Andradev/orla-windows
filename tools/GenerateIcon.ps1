@@ -10,7 +10,7 @@ $edgeCandidates = @(
 )
 $edge = $edgeCandidates | Where-Object { $_ -and (Test-Path -LiteralPath $_) } | Select-Object -First 1
 if (-not $edge) {
-    throw 'Microsoft Edge não encontrado; ele é usado somente para renderizar o SVG durante a geração do ícone.'
+    throw 'Microsoft Edge was not found; it is used only to render the SVG while generating the icon.'
 }
 
 $svg = (Resolve-Path -LiteralPath $SvgPath).Path
@@ -139,14 +139,14 @@ try {
         )
         $process = Start-Process -FilePath $edge -ArgumentList $arguments -Wait -PassThru -WindowStyle Hidden
         if ($process.ExitCode -ne 0 -or -not (Test-Path -LiteralPath $render.Path)) {
-            throw 'Falha ao renderizar o símbolo da Orla.'
+            throw 'Could not render the Orla mark.'
         }
     }
 
     Add-Type -TypeDefinition $iconBuilder -ReferencedAssemblies System.Drawing
     [OrlaIconBuilder]::Build($white, $black, $output)
     $item = Get-Item -LiteralPath $output
-    Write-Output "Ícone gerado: $($item.FullName) ($($item.Length) bytes)"
+    Write-Output "Icon generated: $($item.FullName) ($($item.Length) bytes)"
 }
 finally {
     if (Test-Path -LiteralPath $temporary) {

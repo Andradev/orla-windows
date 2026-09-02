@@ -1,63 +1,68 @@
 # Changelog
 
-Todas as mudanças relevantes do Orla são registradas aqui. O formato segue
-[Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e as versões públicas
-seguem [Semantic Versioning](https://semver.org/lang/pt-BR/).
+Notable Orla changes are recorded here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and public releases follow [Semantic Versioning](https://semver.org/).
 
-## [Não publicado]
+## [Unreleased]
 
-### Adicionado
+### Changed
 
-- estrutura comunitária, documentação de privacidade e automação de releases;
-- verificação reproduzível de build, links locais e SVGs.
+- made the Explorer-owned Windows taskbar the default reliability path;
+- retained the original floating dock as optional `OrlaDock` legacy mode;
+- moved repository documentation and public installer messages to English;
+- bumped the application to the 2.0 release line.
+
+### Added
+
+- one-file per-user install, in-place update, startup registration, Installed Apps registration, and uninstall;
+- runtime taskbar-mode switching from the Orla context menu;
+- crash-safe recovery of the taskbar state captured by a previous session.
 
 ## [1.2.10] - 2026-08-28
 
-### Corrigido
+### Fixed
 
-- segundo clique determinístico para janelas auxiliares, WebViews e HWNDs minimizados;
-- indicador de foco alinhado ao estado real do aplicativo;
-- revelação do dock iniciada em até 100 ms e concluída em 160 ms.
+- deterministic second click for auxiliary windows, WebViews, and minimized HWNDs;
+- focus indicator aligned with the actual active application;
+- dock reveal starting within 100 ms and completing in 160 ms.
 
 ## [1.2.9] - 2026-08-28
 
-### Corrigido
+### Fixed
 
-- área clicável estável e ativação confiável do Microsoft Teams;
-- movimento curto e direcional para ativar e minimizar.
+- stable click area and reliable Microsoft Teams activation;
+- short directional motion for activate and minimize actions.
 
 ## [1.2.8] - 2026-08-28
 
-### Alterado
+### Changed
 
-- cabeçalho do painel rápido simplificado.
+- simplified Quick Panel header.
 
 ## [1.2.6] - 2026-08-28
 
-### Adicionado
+### Added
 
-- controles compactos de Wi-Fi, Bluetooth, economia de energia, luz noturna,
-  volume e brilho;
-- ícones vetoriais e estados sincronizados com o Windows.
+- compact controls for Wi-Fi, Bluetooth, Energy saver, Night light, volume, and brightness;
+- vector icons and state synchronized with Windows.
 
 ## [1.2.0] - 2026-08-28
 
-### Adicionado
+### Added
 
-- monitoramento compartilhado de rede, áudio e bateria;
-- localização baseada no idioma e formato regional do Windows.
+- shared network, audio, and battery monitoring;
+- localization based on Windows display language and regional format.
 
 ## [1.1.0] - 2026-08-27
 
-### Adicionado
+### Added
 
-- primeira base pública do dock e da topbar multi-monitor;
-- integração opcional com Fluent Search e restauração reversível da taskbar.
+- first Orla-branded multi-monitor top bar and dock;
+- optional Fluent Search integration and reversible taskbar restoration.
 
-[Não publicado]: https://github.com/Andradev/orla-windows/compare/v1.2.10...HEAD
+[Unreleased]: https://github.com/Andradev/orla-windows/compare/v1.2.10...HEAD
 [1.2.10]: https://github.com/Andradev/orla-windows/releases/tag/v1.2.10
 [1.2.9]: https://github.com/Andradev/orla-windows/releases/tag/v1.2.9
 [1.2.8]: https://github.com/Andradev/orla-windows/releases/tag/v1.2.8
 [1.2.6]: https://github.com/Andradev/orla-windows/releases/tag/v1.2.6
 [1.2.0]: https://github.com/Andradev/orla-windows/releases/tag/v1.2.0
-[1.1.0]: https://github.com/Andradev/orla-windows/releases
+[1.1.0]: https://github.com/Andradev/orla-windows/releases/tag/v1.1.0

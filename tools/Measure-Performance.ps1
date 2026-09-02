@@ -12,7 +12,7 @@ param(
 $ErrorActionPreference = 'Stop'
 $process = @(Get-Process -Name $ProcessName -ErrorAction Stop)
 if ($process.Count -ne 1) {
-    throw "Era esperado exatamente um processo $ProcessName; encontrados: $($process.Count)."
+    throw "Expected exactly one $ProcessName process; found: $($process.Count)."
 }
 $process = $process[0]
 
@@ -31,7 +31,7 @@ while ($stopwatch.Elapsed.TotalSeconds -lt $DurationSeconds) {
     Start-Sleep -Milliseconds $IntervalMilliseconds
     $process.Refresh()
     if ($process.HasExited) {
-        throw "$ProcessName encerrou durante a medição."
+        throw "$ProcessName exited during the measurement."
     }
 
     $now = $stopwatch.Elapsed.TotalSeconds

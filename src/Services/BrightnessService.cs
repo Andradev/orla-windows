@@ -5,9 +5,9 @@ using Forms = System.Windows.Forms;
 
 namespace Orla
 {
-    // Um único controle representa o brilho do computador, como no painel do
-    // Windows. Monitores externos compatíveis são descobertos por DDC/CI e o
-    // mesmo valor é aplicado a todos; os demais apenas entram no diagnóstico.
+    // One control represents the computer brightness, like the Windows panel.
+    // Compatible external displays are discovered through DDC/CI and receive
+    // the same value; unsupported displays appear only in diagnostics.
     internal sealed class BrightnessService : IDisposable
     {
         private sealed class Target
@@ -78,7 +78,7 @@ namespace Orla
             }
             catch (Exception exception)
             {
-                Logger.Write("Falha ao detectar suporte DDC/CI: " + exception.Message);
+                Logger.Write("Could not detect DDC/CI support: " + exception.Message);
                 foreach (NativeMethods.PhysicalMonitor[] array in arrays)
                     NativeMethods.DestroyPhysicalMonitors((uint)array.Length, array);
                 return new BrightnessService(new List<NativeMethods.PhysicalMonitor[]>(),
@@ -105,7 +105,7 @@ namespace Orla
             }
             catch (Exception exception)
             {
-                Logger.Write("Brilho integrado WMI indisponível: " + exception.Message);
+                Logger.Write("Integrated-display WMI brightness is unavailable: " + exception.Message);
             }
             return instances;
         }
@@ -121,8 +121,8 @@ namespace Orla
                 int integratedPercent;
                 if (TryReadIntegratedBrightness(out integratedPercent))
                 {
-                    // O Quick Settings do Windows representa o painel interno,
-                    // não uma média entre telas com níveis independentes.
+                    // Windows Quick Settings represents the integrated display,
+                    // rather than an average across displays with independent levels.
                     percent = integratedPercent;
                     return true;
                 }
@@ -187,7 +187,7 @@ namespace Orla
             }
             catch (Exception exception)
             {
-                Logger.Write("Falha ao ler brilho integrado: " + exception.Message);
+                Logger.Write("Could not read integrated-display brightness: " + exception.Message);
             }
             return false;
         }
@@ -222,7 +222,7 @@ namespace Orla
             }
             catch (Exception exception)
             {
-                Logger.Write("Falha ao ajustar brilho integrado: " + exception.Message);
+                Logger.Write("Could not set integrated-display brightness: " + exception.Message);
             }
             return changed;
         }

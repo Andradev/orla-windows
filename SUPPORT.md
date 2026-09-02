@@ -1,18 +1,19 @@
-# Suporte
+# Support
 
-## Antes de pedir ajuda
+## Before asking for help
 
-1. Consulte a [solução de problemas](docs/TROUBLESHOOTING.md).
-2. Confirme que está usando a [release mais recente](https://github.com/Andradev/orla-windows/releases/latest).
-3. Execute `%LOCALAPPDATA%\Orla\Orla.exe --restore` se a barra nativa não reaparecer.
-4. Reproduza o problema sem executar a Orla como administrador.
+1. Read [Troubleshooting](docs/TROUBLESHOOTING.md).
+2. Confirm you use the [latest release](https://github.com/Andradev/orla-windows/releases/latest).
+3. Prefer `TaskbarMode=Native` when reporting task activation, grouping, or preview behavior.
+4. Run `%LOCALAPPDATA%\Orla\Orla.exe --restore` if a legacy-dock session did not restore the taskbar.
+5. Reproduce without running Orla as administrator.
 
-## Onde pedir ajuda
+## Where to ask
 
-- Use [GitHub Discussions](https://github.com/Andradev/orla-windows/discussions) para dúvidas de uso e configuração.
-- Abra uma [issue de bug](https://github.com/Andradev/orla-windows/issues/new?template=bug_report.yml) quando houver um comportamento reproduzível.
-- Use o fluxo descrito em [SECURITY.md](SECURITY.md) para vulnerabilidades. Não publique detalhes exploráveis em issues.
+- Use [GitHub Discussions](https://github.com/Andradev/orla-windows/discussions) for usage and configuration questions.
+- Open a [bug report](https://github.com/Andradev/orla-windows/issues/new?template=bug_report.yml) for reproducible behavior.
+- Follow [SECURITY.md](SECURITY.md) for vulnerabilities; never publish exploitable details in an issue.
 
-Inclua versão do Windows, versão da Orla, quantidade de monitores, escala de DPI,
-passos de reprodução e o trecho relevante de `%LOCALAPPDATA%\Orla\Orla.log`.
-Remova nomes de rede, usuário, empresa, títulos de janelas e outros dados privados.
+Include the Orla version, Windows build, taskbar mode, display count, DPI scale, reproduction steps, and a relevant sanitized excerpt from `%LOCALAPPDATA%\Orla\Orla.log`.
+
+Remove usernames, network/company names, window titles, and other private information.

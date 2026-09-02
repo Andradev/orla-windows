@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1200" height="620" viewBox="0 0 1200 620" role="img" aria-labelledby="title desc">
-  <title id="title">Painel de controles rápidos do Orla</title>
-  <desc id="desc">Ilustração genérica do painel com Wi-Fi, Bluetooth, economia de energia, luz noturna, brilho e volume.</desc>
+  <title id="title">Orla quick controls panel</title>
+  <desc id="desc">Illustration of the Wi-Fi, Bluetooth, energy saver, night light, brightness, and volume controls.</desc>
   <defs>
     <linearGradient id="background" x1="0" y1="0" x2="1" y2="1">
       <stop offset="0" stop-color="#07111f"/>
@@ -22,31 +22,31 @@
   <g transform="translate(72 78)">
     <rect width="54" height="54" rx="17" fill="url(#accent)"/>
     <path d="M16 28c7-8 15-12 24-12v7c-7 0-13 3-18 9l-6-4Zm8 9c4-5 9-7 16-7v7c-4 0-7 1-10 5l-6-5Z" fill="#fff"/>
-    <text x="0" y="91" fill="#f4f8ff" font-family="Segoe UI, sans-serif" font-size="36" font-weight="650">Controles rápidos</text>
-    <text x="0" y="124" fill="#9fb0c8" font-family="Segoe UI, sans-serif" font-size="17">Informação útil, ações nativas e resposta imediata.</text>
+    <text x="0" y="91" fill="#f4f8ff" font-family="Segoe UI, sans-serif" font-size="36" font-weight="650">Quick controls</text>
+    <text x="0" y="124" fill="#9fb0c8" font-family="Segoe UI, sans-serif" font-size="17">Useful status, native actions, and immediate feedback.</text>
 
     <g font-family="Segoe UI, sans-serif" font-size="15">
       <g transform="translate(0 184)">
         <circle cx="10" cy="10" r="10" fill="#3e9bff" opacity=".2"/>
         <path d="M6 10.5 9 13l5-6" fill="none" stroke="#65b8ff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-        <text x="32" y="15" fill="#dce8f7">APIs do próprio Windows</text>
+        <text x="32" y="15" fill="#dce8f7">Native Windows APIs</text>
       </g>
       <g transform="translate(0 229)">
         <circle cx="10" cy="10" r="10" fill="#3e9bff" opacity=".2"/>
         <path d="M6 10.5 9 13l5-6" fill="none" stroke="#65b8ff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-        <text x="32" y="15" fill="#dce8f7">Painel leve e transitório</text>
+        <text x="32" y="15" fill="#dce8f7">Lightweight transient panel</text>
       </g>
       <g transform="translate(0 274)">
         <circle cx="10" cy="10" r="10" fill="#3e9bff" opacity=".2"/>
         <path d="M6 10.5 9 13l5-6" fill="none" stroke="#65b8ff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-        <text x="32" y="15" fill="#dce8f7">Sem telemetria ou conta obrigatória</text>
+        <text x="32" y="15" fill="#dce8f7">No telemetry or required account</text>
       </g>
     </g>
   </g>
 
   <g transform="translate(555 52)" filter="url(#shadow)">
     <rect width="575" height="516" rx="28" fill="#172236" stroke="#33445d"/>
-    <text x="30" y="48" fill="#f6f9ff" font-family="Segoe UI, sans-serif" font-size="20" font-weight="650">Controles</text>
+    <text x="30" y="48" fill="#f6f9ff" font-family="Segoe UI, sans-serif" font-size="20" font-weight="650">Controls</text>
 
     <g font-family="Segoe UI, sans-serif">
       <g transform="translate(30 75)">
@@ -55,7 +55,7 @@
           <path d="M2 14c10-9 22-9 32 0M8 21c6-6 14-6 20 0M15 28c2-2 4-2 6 0"/>
         </g>
         <text x="62" y="36" fill="#fff" font-size="15" font-weight="650">Wi-Fi</text>
-        <text x="62" y="58" fill="#eaf5ff" font-size="12">Conectado</text>
+        <text x="62" y="58" fill="#eaf5ff" font-size="12">Connected</text>
         <path d="m224 36 5 5 5-5" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round"/>
       </g>
 
@@ -63,22 +63,22 @@
         <rect width="247" height="82" rx="18" fill="#202d43" stroke="#3b4a61"/>
         <path d="m24 22 13 12-13 12V18l13 12-13 12" fill="none" stroke="#cbd8e8" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"/>
         <text x="62" y="36" fill="#f2f6fc" font-size="15" font-weight="650">Bluetooth</text>
-        <text x="62" y="58" fill="#aebdd0" font-size="12">Ligado</text>
+        <text x="62" y="58" fill="#aebdd0" font-size="12">On</text>
         <path d="m224 36 5 5 5-5" fill="none" stroke="#aebdd0" stroke-width="2" stroke-linecap="round"/>
       </g>
 
       <g transform="translate(30 174)">
         <rect width="247" height="82" rx="18" fill="#202d43" stroke="#3b4a61"/>
         <path d="M19 42c0-12 8-22 25-23-1 17-8 28-21 28m0 0c4-7 9-12 17-17" fill="none" stroke="#cbd8e8" stroke-width="2.3" stroke-linecap="round"/>
-        <text x="62" y="36" fill="#f2f6fc" font-size="15" font-weight="650">Economia de energia</text>
-        <text x="62" y="58" fill="#aebdd0" font-size="12">Desligada</text>
+        <text x="62" y="36" fill="#f2f6fc" font-size="15" font-weight="650">Energy saver</text>
+        <text x="62" y="58" fill="#aebdd0" font-size="12">Off</text>
       </g>
 
       <g transform="translate(298 174)">
         <rect width="247" height="82" rx="18" fill="#203657" stroke="#3e79bc"/>
         <path d="M37 20a18 18 0 1 0 10 31 17 17 0 0 1-10-31Z" fill="#79bdff"/>
-        <text x="62" y="36" fill="#f2f7ff" font-size="15" font-weight="650">Luz noturna</text>
-        <text x="62" y="58" fill="#bddcff" font-size="12">Ligada</text>
+        <text x="62" y="36" fill="#f2f7ff" font-size="15" font-weight="650">Night light</text>
+        <text x="62" y="58" fill="#bddcff" font-size="12">On</text>
       </g>
 
       <g transform="translate(30 298)">
@@ -106,7 +106,7 @@
     <g transform="translate(30 470)" font-family="Segoe UI, sans-serif">
       <circle cx="14" cy="14" r="14" fill="#22324a"/>
       <path d="M14 7v14M7 14h14" stroke="#aabbd0" stroke-width="2" stroke-linecap="round"/>
-      <text x="42" y="20" fill="#aebdd0" font-size="13">Configurações do Windows</text>
+      <text x="42" y="20" fill="#aebdd0" font-size="13">Windows Settings</text>
     </g>
   </g>
 </svg>
