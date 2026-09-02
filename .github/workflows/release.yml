@@ -44,8 +44,12 @@ jobs:
           if (-not (Test-Path -LiteralPath $notes)) {
               throw "Release notes not found: $notes"
           }
+          $previousErrorPreference = $ErrorActionPreference
+          $ErrorActionPreference = 'SilentlyContinue'
           gh release view $tag *> $null
-          if ($LASTEXITCODE -eq 0) {
+          $releaseExists = $LASTEXITCODE -eq 0
+          $ErrorActionPreference = $previousErrorPreference
+          if ($releaseExists) {
               gh release upload $tag .\dist\Orla.exe .\dist\Orla.exe.sha256 --clobber
           } else {
               gh release create $tag .\dist\Orla.exe .\dist\Orla.exe.sha256 `
